@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "VirtualWardrobe",
+    "slug": "VirtualWardrobe",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.bimal.virtualwardrobe"
+    },
+    "android": {
+      "package": "com.bimal.virtualwardrobe",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "VirtualWardrobe uses the camera to photograph your clothes. Photos are processed on-device.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "VirtualWardrobe lets you import clothing photos from your gallery."
+        }
+      ],
+      "expo-sqlite",
+      "expo-secure-store",
+      "onnxruntime-react-native",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "buildArchs": [
+              "arm64-v8a"
+            ],
+            "packagingOptions": {
+              "pickFirst": [
+                "**/libc++_shared.so",
+                "**/libonnxruntime.so"
+              ]
+            }
+          }
+        }
+      ],
+      "expo-router",
+      "expo-font"
+    ],
+    "scheme": "virtualwardrobe"
+  }
+}
