@@ -42,3 +42,6 @@ yarn-error.*
 
 # Go API local uploads
 backend/uploads/
+
+# docker compose secrets (root only; frontend/.env must stay visible to EAS uploads)
+/.env
