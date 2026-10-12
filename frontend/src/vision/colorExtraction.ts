@@ -1,10 +1,6 @@
 import type { RGBAImage } from '../image/pixels';
+import type { PaletteEntry } from '../domain/types';
 import { labToRgb, rgbToHex, rgbToLab, type Lab } from './color';
-
-export interface PaletteEntry {
-  hex: string;
-  share: number; // fraction of garment pixels in this cluster
-}
 
 const K = 5;
 const MAX_SAMPLES = 4000;
@@ -19,7 +15,9 @@ const MIN_ALPHA = 200;
 const MERGE_DELTA_E = 12;
 
 /** K-Means (k-means++ init) over garment pixels in CIELAB. Returns clusters by size. */
-export function extractPalette(cutout: RGBAImage): PaletteEntry[] {
+export type PaletteExtractor = (cutout: RGBAImage) => PaletteEntry[];
+
+export const extractPalette: PaletteExtractor = (cutout) => {
   const samples = sampleForeground(cutout);
   if (samples.length === 0) return [];
   const k = Math.min(K, samples.length);
@@ -78,7 +76,7 @@ export function extractPalette(cutout: RGBAImage): PaletteEntry[] {
   return merged
     .sort((a, b) => b.n - a.n)
     .map((m) => ({ hex: rgbToHex(labToRgb(m.lab)), share: m.n / samples.length }));
-}
+};
 
 function sampleForeground(img: RGBAImage): Lab[] {
   const { data } = img;

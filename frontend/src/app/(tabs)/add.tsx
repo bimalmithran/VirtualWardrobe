@@ -1,5 +1,5 @@
-import { IngestionFlow } from '../../components/IngestionFlow';
+import { IngestionScreen } from '../../features/ingestion/IngestionScreen';
 
 export default function AddGarment() {
-  return <IngestionFlow mode="closet" />;
+  return <IngestionScreen mode="closet" />;
 }

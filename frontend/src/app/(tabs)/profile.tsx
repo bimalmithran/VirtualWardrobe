@@ -4,16 +4,18 @@ import { Button } from '../../components/Button';
 import { DigitalTwinForm } from '../../components/DigitalTwinForm';
 import { ModelSetup } from '../../components/ModelSetup';
 import { MODELS, type ModelKey } from '../../config/models';
-import { modelManager, useModelStatuses } from '../../ml/modelManager';
-import { useProfile } from '../../storage/profile';
+import { useProfile } from '../../features/profile/ProfileContext';
+import { useModelStatuses } from '../../ml/modelStatus';
+import { useServices } from '../../services/ServicesProvider';
 import { ui } from '../../theme';
 
 const KEYS = Object.keys(MODELS) as ModelKey[];
 
 export default function ProfileTab() {
   const { profile, save } = useProfile();
-  const statuses = useModelStatuses();
-  const missing = KEYS.filter((k) => !modelManager.isDownloaded(k) || statuses[k].state === 'downloading');
+  const { models } = useServices();
+  const statuses = useModelStatuses(models.status);
+  const missing = KEYS.filter((k) => !models.files.isDownloaded(k) || statuses[k].state === 'downloading');
   const resident = KEYS.filter((k) => statuses[k].state === 'ready');
 
   return (
@@ -35,12 +37,12 @@ export default function ProfileTab() {
                     {MODELS[k].label}: {statuses[k].state === 'ready' ? 'in memory' : 'on disk'}
                   </Text>
                 ))}
-                <Text style={ui.muted}>Keeping up to {modelManager.maxResident} model(s) in memory on this device.</Text>
+                <Text style={ui.muted}>Keeping up to {models.memory.maxResident} model(s) in memory on this device.</Text>
                 <Button
                   title="Free model memory"
                   variant="secondary"
                   disabled={resident.length === 0}
-                  onPress={() => modelManager.releaseAll()}
+                  onPress={() => models.memory.releaseAll()}
                 />
               </View>
             )}

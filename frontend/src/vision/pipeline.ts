@@ -1,9 +1,10 @@
 import { WORKING_MAX_SIDE } from '../config/models';
+import type { PaletteEntry } from '../domain/types';
 import { encodePNG, loadRGBAFit, type RGBAImage } from '../image/pixels';
-import { removeBackground } from './backgroundRemoval';
-import { extractPalette, type PaletteEntry } from './colorExtraction';
-import { embedGarment } from './embedding';
-import { assessQuality, type QualityReport } from './junkFilter';
+import type { BackgroundRemover } from './backgroundRemoval';
+import type { PaletteExtractor } from './colorExtraction';
+import type { GarmentEmbedder } from './embedding';
+import type { QualityReport } from './junkFilter';
 
 export interface Photo {
   uri: string;
@@ -22,47 +23,63 @@ export interface ProcessedGarment {
   timingsMs: Partial<Record<Stage, number>>;
 }
 
+export interface ProcessOptions {
+  embed: boolean;
+  onStage?: (stage: Stage) => void;
+}
+
+/** The pipeline's collaborators. Each one is replaceable on its own (e.g. a different model). */
+export interface PipelineStages {
+  removeBackground: BackgroundRemover;
+  embedder: GarmentEmbedder;
+  extractPalette: PaletteExtractor;
+  assessQuality: (img: RGBAImage) => QualityReport;
+}
+
 /** Fraction of the frame the garment must cover for the cutout to be trusted. */
 const MIN_COVERAGE = 0.03;
 const MAX_COVERAGE = 0.97;
 
-/** Step 1: decode a bounded working copy and run the junk filter on it. */
-export async function inspectPhoto(photo: Photo): Promise<{ working: RGBAImage; quality: QualityReport }> {
-  const working = await loadRGBAFit(photo.uri, photo.width, photo.height, WORKING_MAX_SIDE);
-  return { working, quality: assessQuality(working) };
-}
+/** Orders the on-device stages. It knows the sequence and nothing about how each stage works. */
+export class GarmentPipeline {
+  constructor(private readonly stages: PipelineStages) {}
 
-/** Step 2: the on-device pipeline. Each stage yields to the UI first so progress can render. */
-export async function processGarment(
-  photo: Photo,
-  working: RGBAImage,
-  opts: { embed: boolean; onStage?: (stage: Stage) => void },
-): Promise<ProcessedGarment> {
-  const timingsMs: ProcessedGarment['timingsMs'] = {};
-  const timed = async <T,>(stage: Stage, fn: () => Promise<T> | T): Promise<T> => {
-    opts.onStage?.(stage);
-    await nextFrame();
-    const t0 = Date.now();
-    const result = await fn();
-    timingsMs[stage] = Date.now() - t0;
-    return result;
-  };
-
-  const { cutout, coverage } = await timed('segmentation', () => removeBackground(photo.uri, working));
-  if (coverage < MIN_COVERAGE || coverage > MAX_COVERAGE) {
-    throw new Error(
-      coverage < MIN_COVERAGE
-        ? 'No garment found in the photo. Move closer so it fills most of the frame.'
-        : 'Could not separate the garment from the background. Try a plain, contrasting surface.',
-    );
+  /** Step 1: decode a bounded working copy and run the junk filter on it. */
+  async inspect(photo: Photo): Promise<{ working: RGBAImage; quality: QualityReport }> {
+    const working = await loadRGBAFit(photo.uri, photo.width, photo.height, WORKING_MAX_SIDE);
+    return { working, quality: this.stages.assessQuality(working) };
   }
 
-  const palette = await timed('color', () => extractPalette(cutout));
-  if (palette.length === 0) throw new Error('Could not extract a colour from the garment.');
+  /** Step 2: cutout, palette, and (optionally) the embedding. Each stage yields to the UI first. */
+  async process(photo: Photo, working: RGBAImage, opts: ProcessOptions): Promise<ProcessedGarment> {
+    const timingsMs: ProcessedGarment['timingsMs'] = {};
+    const timed = async <T,>(stage: Stage, fn: () => Promise<T> | T): Promise<T> => {
+      opts.onStage?.(stage);
+      await nextFrame();
+      const t0 = Date.now();
+      const result = await fn();
+      timingsMs[stage] = Date.now() - t0;
+      return result;
+    };
 
-  const embedding = opts.embed ? await timed('embedding', () => embedGarment(cutout)) : null;
+    const { cutout, coverage } = await timed('segmentation', () =>
+      this.stages.removeBackground.removeBackground(photo.uri, working),
+    );
+    if (coverage < MIN_COVERAGE || coverage > MAX_COVERAGE) {
+      throw new Error(
+        coverage < MIN_COVERAGE
+          ? 'No garment found in the photo. Move closer so it fills most of the frame.'
+          : 'Could not separate the garment from the background. Try a plain, contrasting surface.',
+      );
+    }
 
-  return { png: encodePNG(cutout), colorHex: palette[0].hex, palette, embedding, coverage, timingsMs };
+    const palette = await timed('color', () => this.stages.extractPalette(cutout));
+    if (palette.length === 0) throw new Error('Could not extract a colour from the garment.');
+
+    const embedding = opts.embed ? await timed('embedding', () => this.stages.embedder.embed(cutout)) : null;
+
+    return { png: encodePNG(cutout), colorHex: palette[0].hex, palette, embedding, coverage, timingsMs };
+  }
 }
 
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));

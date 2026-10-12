@@ -1,34 +1,32 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
 
-import { cloudEnabled } from '../../api/client';
-import { onClosetSynced } from '../../api/sync';
 import { Button } from '../../components/Button';
-import { deleteGarment, listGarments, type Garment } from '../../storage/closet';
+import type { Garment } from '../../domain/types';
+import { useServices } from '../../services/ServicesProvider';
 import { colors, ui } from '../../theme';
 
 const COLUMNS = 3;
 const GAP = 8;
 
 export default function Closet() {
-  const db = useSQLiteContext();
+  const { closet, sync } = useServices();
   const [garments, setGarments] = useState<Garment[] | null>(null);
   const { width } = useWindowDimensions();
   const tile = (width - 16 * 2 - GAP * (COLUMNS - 1)) / COLUMNS;
 
   const load = useCallback(() => {
-    listGarments(db).then(setGarments).catch(() => setGarments([]));
-  }, [db]);
+    closet.list().then(setGarments).catch(() => setGarments([]));
+  }, [closet]);
 
   useFocusEffect(load);
-  useEffect(() => onClosetSynced(load), [load]);
+  useEffect(() => sync.onSynced(load), [sync, load]);
 
   const confirmDelete = (g: Garment) =>
     Alert.alert('Remove garment?', 'This deletes the image and its data from this device.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => deleteGarment(db, g).then(load) },
+      { text: 'Remove', style: 'destructive', onPress: () => closet.remove(g).then(load) },
     ]);
 
   if (garments && garments.length === 0) {
@@ -54,7 +52,7 @@ export default function Closet() {
       ListHeaderComponent={
         garments ? (
           <Text style={[ui.muted, styles.count]}>
-            {garments.length} items · {syncLabel(garments)} · long-press to remove
+            {garments.length} items · {syncLabel(garments, sync.enabled)} · long-press to remove
           </Text>
         ) : null
       }
@@ -72,7 +70,7 @@ export default function Closet() {
   );
 }
 
-function syncLabel(garments: Garment[]) {
+function syncLabel(garments: Garment[], cloudEnabled: boolean) {
   if (!cloudEnabled) return 'on-device only';
   const pending = garments.filter((g) => g.syncedAt === null && g.embedding).length;
   return pending === 0 ? 'all synced' : `${pending} waiting to sync`;

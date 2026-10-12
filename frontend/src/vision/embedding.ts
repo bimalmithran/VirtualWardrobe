@@ -1,39 +1,44 @@
-import { EMBEDDING_DIM, MODELS } from '../config/models';
+import { EMBEDDING_DIM, MODELS, type ModelSpec } from '../config/models';
 import type { RGBAImage } from '../image/pixels';
 import { cropResizeOnBackground, rgbaToCHW } from '../image/tensor';
-import { modelManager } from '../ml/modelManager';
+import type { ModelRunner } from '../ml/modelRunner';
+
+export interface GarmentEmbedder {
+  /** Returns a unit-length style vector for a background-removed garment. */
+  embed(cutout: RGBAImage): Promise<Float32Array>;
+}
 
 /**
  * MobileCLIP-S0 image tower. Mirrors the HF CLIPFeatureExtractor config: resize the
  * shortest edge to 256, centre-crop 256x256, rescale to 0..1, no mean/std.
  * The cutout is flattened onto white so the background can't leak into the vector.
  */
-export async function embedGarment(cutout: RGBAImage): Promise<Float32Array> {
-  const spec = MODELS.embedding;
-  const size = spec.inputSize;
-  const side = Math.min(cutout.width, cutout.height);
-  const crop = {
-    x: Math.floor((cutout.width - side) / 2),
-    y: Math.floor((cutout.height - side) / 2),
-    w: side,
-    h: side,
-  };
-  const input = rgbaToCHW(cropResizeOnBackground(cutout, crop, size, size), spec.mean, spec.std);
+export class MobileClipEmbedder implements GarmentEmbedder {
+  constructor(
+    private readonly runner: ModelRunner,
+    private readonly spec: ModelSpec = MODELS.embedding,
+  ) {}
 
-  const vector = await modelManager.withSession('embedding', async (session, ort) => {
-    const results = await session.run({
-      [session.inputNames[0]]: new ort.Tensor('float32', input, [1, 3, size, size]),
+  async embed(cutout: RGBAImage): Promise<Float32Array> {
+    const size = this.spec.inputSize;
+    const side = Math.min(cutout.width, cutout.height);
+    const crop = {
+      x: Math.floor((cutout.width - side) / 2),
+      y: Math.floor((cutout.height - side) / 2),
+      w: side,
+      h: side,
+    };
+    const input = rgbaToCHW(cropResizeOnBackground(cutout, crop, size, size), this.spec.mean, this.spec.std);
+    const { data } = await this.runner.run(this.spec.key, {
+      input,
+      dims: [1, 3, size, size],
+      pickOutput: (names) => (names.includes('image_embeds') ? 'image_embeds' : names[0]),
     });
-    const name = session.outputNames.includes('image_embeds') ? 'image_embeds' : session.outputNames[0];
-    const v = new Float32Array(results[name].data as Float32Array);
-    for (const key of Object.keys(results)) results[key].dispose?.();
-    return v;
-  });
-
-  if (vector.length !== EMBEDDING_DIM) {
-    throw new Error(`Expected a ${EMBEDDING_DIM}-d embedding, got ${vector.length}`);
+    if (data.length !== EMBEDDING_DIM) {
+      throw new Error(`Expected a ${EMBEDDING_DIM}-d embedding, got ${data.length}`);
+    }
+    return l2normalise(data);
   }
-  return l2normalise(vector);
 }
 
 function l2normalise(v: Float32Array) {

@@ -2,7 +2,7 @@ import { ActivityIndicator, View, type ColorValue } from 'react-native';
 import { Redirect, Tabs } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
-import { useProfile } from '../../storage/profile';
+import { useProfile } from '../../features/profile/ProfileContext';
 import { colors, ui } from '../../theme';
 
 const icon = (name: keyof typeof Ionicons.glyphMap) =>

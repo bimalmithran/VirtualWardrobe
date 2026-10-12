@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import type { BodyShape, DigitalTwin, Undertone } from '../storage/profile';
+import type { BodyShape, DigitalTwin, DigitalTwinInput, Undertone } from '../domain/types';
 import { colors, ui } from '../theme';
 import { Button } from './Button';
 
@@ -22,7 +22,7 @@ const UNDERTONES: { value: Undertone; label: string; hint: string; swatch: strin
 interface Props {
   initial?: DigitalTwin | null;
   submitLabel: string;
-  onSubmit: (profile: Omit<DigitalTwin, 'updatedAt'>) => Promise<void>;
+  onSubmit: (profile: DigitalTwinInput) => Promise<void>;
   footer?: ReactNode;
 }
 

@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { MODELS, type ModelKey } from '../config/models';
-import { errorMessage, modelManager, useModelStatuses, type ModelState } from '../ml/modelManager';
+import { errorMessage } from '../lib/errors';
+import { useModelStatuses, type ModelState } from '../ml/modelStatus';
+import { useServices } from '../services/ServicesProvider';
 import { colors, ui } from '../theme';
 import { Button } from './Button';
 
@@ -13,7 +15,8 @@ interface Props {
 
 /** One-time model download with per-file progress. Shown until the required models are on disk. */
 export function ModelSetup({ required }: Props) {
-  const statuses = useModelStatuses();
+  const { models } = useServices();
+  const statuses = useModelStatuses(models.status);
   const [error, setError] = useState<string | null>(null);
   const downloading = required.some((k) => statuses[k].state === 'downloading');
   const totalMb = required.reduce((sum, k) => sum + MODELS[k].bytes, 0) / 1e6;
@@ -21,7 +24,7 @@ export function ModelSetup({ required }: Props) {
   const start = async () => {
     setError(null);
     try {
-      for (const key of required) await modelManager.download(key);
+      await models.files.downloadAll(required);
     } catch (e) {
       setError(errorMessage(e));
     }

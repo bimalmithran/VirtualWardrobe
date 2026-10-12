@@ -2,7 +2,7 @@ import { Text, View } from 'react-native';
 import { router } from 'expo-router';
 
 import { DigitalTwinForm } from '../components/DigitalTwinForm';
-import { useProfile } from '../storage/profile';
+import { useProfile } from '../features/profile/ProfileContext';
 import { ui } from '../theme';
 
 export default function Onboarding() {

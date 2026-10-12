@@ -1,5 +1,5 @@
-import { IngestionFlow } from '../../components/IngestionFlow';
+import { IngestionScreen } from '../../features/ingestion/IngestionScreen';
 
 export default function LiveShop() {
-  return <IngestionFlow mode="shop" />;
+  return <IngestionScreen mode="shop" />;
 }

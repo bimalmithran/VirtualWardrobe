@@ -1,44 +1,45 @@
 import { useEffect, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
 
-import { cloudEnabled, searchSimilar, type CloudMatch } from '../../api/client';
 import { Button } from '../../components/Button';
 import { MatchScoreCard } from '../../components/MatchScoreCard';
-import { deleteGarment, listGarments, type Garment } from '../../storage/closet';
-import { useProfile } from '../../storage/profile';
-import { cosine } from '../../vision/embedding';
+import { SimilarGrid } from '../../components/SimilarGrid';
+import type { Garment } from '../../domain/types';
+import { CloudSearchPanel } from '../../features/closet/CloudSearchPanel';
+import { useProfile } from '../../features/profile/ProfileContext';
+import { useServices } from '../../services/ServicesProvider';
+import { ui } from '../../theme';
+import { rankBySimilarity, type RankedGarment } from '../../vision/similarity';
 import { scoreUndertoneMatch } from '../../vision/undertoneMatch';
-import { colors, ui } from '../../theme';
 
 const SIMILAR_COUNT = 6;
 
+const openGarment = (id: string) => router.replace({ pathname: '/garment/[id]', params: { id } });
+
 export default function GarmentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const db = useSQLiteContext();
+  const { closet, similarity } = useServices();
   const { profile } = useProfile();
-  const [garment, setGarment] = useState<Garment | null>(null);
-  const [similar, setSimilar] = useState<{ g: Garment; score: number }[]>([]);
+  const [garment, setGarment] = useState<Garment | null | undefined>(undefined);
+  const [similar, setSimilar] = useState<RankedGarment[]>([]);
 
   useEffect(() => {
-    // Brute-force cosine search is instant for a personal closet (hundreds of 512-d vectors).
-    listGarments(db).then((all) => {
+    closet.list().then((all) => {
       const current = all.find((g) => g.id === id) ?? null;
       setGarment(current);
-      const query = current?.embedding;
-      if (!query) return setSimilar([]);
-      setSimilar(
-        all
-          .filter((g) => g.id !== id && g.embedding)
-          .map((g) => ({ g, score: cosine(query, g.embedding!) }))
-          .sort((a, b) => b.score - a.score)
-          .slice(0, SIMILAR_COUNT),
-      );
+      setSimilar(current ? rankBySimilarity(current, all, SIMILAR_COUNT) : []);
     });
-  }, [db, id]);
+  }, [closet, id]);
 
-  if (!garment) return <View style={ui.screen} />;
+  if (garment === undefined) return <View style={ui.screen} />;
+  if (garment === null) {
+    return (
+      <View style={[ui.screen, styles.content]}>
+        <Text style={ui.muted}>This garment is no longer in your closet on this phone.</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={styles.content}>
@@ -51,75 +52,25 @@ export default function GarmentDetail() {
       {similar.length === 0 ? (
         <Text style={ui.muted}>Add more garments to see style matches.</Text>
       ) : (
-        <View style={styles.row}>
-          {similar.map(({ g, score }) => (
-            <Pressable key={g.id} onPress={() => router.replace({ pathname: '/garment/[id]', params: { id: g.id } })} style={styles.similar}>
-              <View style={[ui.checker, styles.thumb]}>
-                <Image source={{ uri: g.imageUri }} style={styles.fill} resizeMode="contain" />
-              </View>
-              <Text style={ui.muted}>{(score * 100).toFixed(0)}% match</Text>
-            </Pressable>
-          ))}
-        </View>
+        <SimilarGrid
+          items={similar.map(({ garment: g, score }) => ({ key: g.id, imageUri: g.imageUri, score, onPress: () => openGarment(g.id) }))}
+        />
       )}
 
-      {cloudEnabled && garment.embedding && <CloudSearch garment={garment} />}
+      {similarity && garment.embedding && (
+        <CloudSearchPanel garment={{ ...garment, embedding: garment.embedding }} remote={similarity} onOpen={openGarment} />
+      )}
 
       <Button
         title="Remove from closet"
         variant="secondary"
         style={styles.section}
         onPress={async () => {
-          await deleteGarment(db, garment);
+          await closet.remove(garment);
           router.back();
         }}
       />
     </ScrollView>
-  );
-}
-
-/** Same query as the on-device list above, answered by pgvector's HNSW index on the server. */
-function CloudSearch({ garment }: { garment: Garment }) {
-  const [state, setState] = useState<{ busy: boolean; results: CloudMatch[] | null; error: string | null }>({
-    busy: false,
-    results: null,
-    error: null,
-  });
-
-  const run = async () => {
-    setState((s) => ({ ...s, busy: true, error: null }));
-    try {
-      const results = await searchSimilar(garment.embedding!, 6);
-      setState({ busy: false, results: results.filter((r) => r.client_item_id !== garment.id).slice(0, 5), error: null });
-    } catch (e) {
-      setState({ busy: false, results: null, error: e instanceof Error ? e.message : String(e) });
-    }
-  };
-
-  return (
-    <View style={styles.section}>
-      <Text style={[ui.h2, { marginBottom: 8 }]}>Cloud search (pgvector)</Text>
-      {garment.syncedAt === null && <Text style={ui.muted}>This garment hasn&apos;t been uploaded yet.</Text>}
-      {state.error && <Text style={[ui.muted, { color: colors.danger }]}>{state.error}</Text>}
-      {state.results && state.results.length === 0 && <Text style={ui.muted}>No other garments on the server yet.</Text>}
-      {state.results && state.results.length > 0 && (
-        <View style={styles.row}>
-          {state.results.map((r) => (
-            <Pressable
-              key={r.id}
-              onPress={() => router.replace({ pathname: '/garment/[id]', params: { id: r.client_item_id } })}
-              style={styles.similar}
-            >
-              <View style={[ui.checker, styles.thumb]}>
-                <Image source={{ uri: r.image_url }} style={styles.fill} resizeMode="contain" />
-              </View>
-              <Text style={ui.muted}>{(r.similarity * 100).toFixed(0)}% match</Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
-      <Button title="Search the cloud" variant="secondary" busy={state.busy} onPress={run} style={{ marginTop: 8 }} />
-    </View>
   );
 }
 
@@ -128,7 +79,4 @@ const styles = StyleSheet.create({
   hero: { aspectRatio: 1, borderRadius: 16, overflow: 'hidden', marginBottom: 12 },
   fill: { width: '100%', height: '100%' },
   section: { marginTop: 20, marginBottom: 8 },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  similar: { width: '30%', gap: 4 },
-  thumb: { aspectRatio: 1, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
 });

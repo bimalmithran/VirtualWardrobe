@@ -1,4 +1,4 @@
-import type { Undertone } from '../storage/profile';
+import type { Undertone } from '../domain/types';
 import { colorName, hexToRgb, labToLch, rgbToLab } from './color';
 
 export interface MatchResult {
