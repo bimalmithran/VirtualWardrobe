@@ -1,7 +1,8 @@
 # Backend:  docker compose up --build -d            -> API on :8080, Postgres+pgvector on 127.0.0.1:5432
-# APK:      docker compose --profile apk run --rm apk -> dist/VirtualWardrobe-release.apk
+# APK:      docker compose --profile apk run --rm apk -> frontend/dist/VirtualWardrobe-release.apk
 #
-# Values come from ./.env (see .env.example); Compose and the Expo bundler both read it.
+# Values come from ./.env (see frontend/.env.example). Compose interpolates them, and the APK
+# service passes EXPO_PUBLIC_API_URL to the Expo bundler.
 name: virtualwardrobe
 
 services:
@@ -42,14 +43,14 @@ services:
 
   apk:
     profiles: ["apk"] # never started by a plain `docker compose up`
-    build: ./docker/android
+    build: ./frontend/docker
     environment:
       EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL:-}
       HOST_UID: ${HOST_UID:-1000}
       HOST_GID: ${HOST_GID:-1000}
     volumes:
-      - .:/src:ro
-      - ./dist:/out
+      - ./frontend:/src:ro
+      - ./frontend/dist:/out
       - gradle-cache:/root/.gradle
       - npm-cache:/root/.npm
 
