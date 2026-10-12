@@ -1,14 +1,6 @@
-// Command server runs the VirtualWardrobe API.
-//
-// Environment:
-//
-//	DATABASE_URL          postgres://user:pass@host:5432/db   (required)
-//	ADDR                  listen address                       (default :8080)
-//	UPLOAD_DIR            where garment PNGs are written       (default ./uploads)
-//	PUBLIC_BASE_URL       base for returned image URLs         (default: request Host)
-//	AUTO_MIGRATE          apply db/schema.sql at startup       (default true)
-//	LLM_COST_CEILING_USD  per-request LLM cost ceiling         (default 0.01)
-//	LLM_EMA_ALPHA         latency EMA smoothing factor         (default 0.3)
+// Command server runs the VirtualWardrobe API. This file is the composition root: the
+// only place that knows which concrete adapters implement which interfaces.
+// Settings are documented in internal/config.
 package main
 
 import (
@@ -18,14 +10,20 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
-	"github.com/bimalmithran/virtualwardrobe/backend/internal/api"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/bimalmithran/virtualwardrobe/backend/internal/config"
+	"github.com/bimalmithran/virtualwardrobe/backend/internal/httpapi"
+	"github.com/bimalmithran/virtualwardrobe/backend/internal/imagestore"
 	"github.com/bimalmithran/virtualwardrobe/backend/internal/llmgateway"
-	"github.com/bimalmithran/virtualwardrobe/backend/internal/store"
+	"github.com/bimalmithran/virtualwardrobe/backend/internal/postgres"
+	"github.com/bimalmithran/virtualwardrobe/backend/internal/wardrobe"
 )
+
+const imagesPrefix = "/uploads"
 
 func main() {
 	log := slog.New(slog.NewTextHandler(os.Stdout, nil))
@@ -36,51 +34,65 @@ func main() {
 }
 
 func run(log *slog.Logger) error {
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		return errors.New("DATABASE_URL is required")
+	cfg, err := config.Load()
+	if err != nil {
+		return err
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	st, err := connectWithRetry(ctx, log, dbURL, envBool("AUTO_MIGRATE", true))
+	pool, err := connectWithRetry(ctx, log, cfg)
 	if err != nil {
 		return err
 	}
-	defer st.Close()
+	defer pool.Close()
 
-	gw, err := llmgateway.New(llmgateway.Config{
-		CostCeilingUSD: envFloat("LLM_COST_CEILING_USD", 0.01),
-		Alpha:          envFloat("LLM_EMA_ALPHA", 0.3),
-	}, llmgateway.DemoModels()...)
+	images, err := imagestore.NewLocalFS(cfg.UploadDir, imagesPrefix)
 	if err != nil {
 		return err
 	}
+	closet := wardrobe.NewCloset(postgres.NewItems(pool), images)
 
-	uploadDir := envOr("UPLOAD_DIR", "./uploads")
-	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
+	gateway, err := llmgateway.New(llmgateway.DemoModels(), llmgateway.Options{
+		Policy: llmgateway.CheapestFastestUnderCeiling{CeilingUSD: cfg.LLMCeilingUSD},
+		Health: llmgateway.NewEMATracker(llmgateway.EMAConfig{Alpha: cfg.LLMEMAAlpha}),
+	})
+	if err != nil {
 		return err
 	}
 
 	srv := &http.Server{
-		Addr: envOr("ADDR", ":8080"),
-		Handler: api.New(st, gw, api.Config{
-			UploadDir:     uploadDir,
-			PublicBaseURL: os.Getenv("PUBLIC_BASE_URL"),
-		}, log).Handler(),
+		Addr: cfg.Addr,
+		Handler: httpapi.NewRouter(httpapi.Deps{
+			Health:        pool,
+			Profiles:      wardrobe.NewProfiles(postgres.NewUsers(pool)),
+			Items:         closet,
+			Search:        closet,
+			LLM:           gateway,
+			LLMStats:      gateway,
+			Images:        images.Handler(),
+			ImagesPrefix:  imagesPrefix,
+			PublicBaseURL: cfg.PublicBaseURL,
+			Log:           log,
+		}),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       60 * time.Second, // phones on mobile data upload slowly
 		WriteTimeout:      60 * time.Second,
 	}
+	return serve(ctx, log, srv)
+}
 
+func serve(ctx context.Context, log *slog.Logger, srv *http.Server) error {
 	errCh := make(chan error, 1)
 	go func() {
 		log.Info("listening", "addr", srv.Addr)
 		errCh <- srv.ListenAndServe()
 	}()
-
 	select {
 	case err := <-errCh:
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
 		return err
 	case <-ctx.Done():
 	}
@@ -91,14 +103,14 @@ func run(log *slog.Logger) error {
 }
 
 // connectWithRetry tolerates the database still starting (common under docker compose).
-func connectWithRetry(ctx context.Context, log *slog.Logger, url string, migrate bool) (*store.Store, error) {
+func connectWithRetry(ctx context.Context, log *slog.Logger, cfg config.Config) (*pgxpool.Pool, error) {
 	var lastErr error
 	for attempt := 1; attempt <= 15; attempt++ {
 		attemptCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		st, err := store.Open(attemptCtx, url, migrate)
+		pool, err := postgres.Open(attemptCtx, cfg.DatabaseURL, cfg.AutoMigrate)
 		cancel()
 		if err == nil {
-			return st, nil
+			return pool, nil
 		}
 		lastErr = err
 		log.Warn("database not ready", "attempt", attempt, "err", err)
@@ -109,25 +121,4 @@ func connectWithRetry(ctx context.Context, log *slog.Logger, url string, migrate
 		}
 	}
 	return nil, lastErr
-}
-
-func envOr(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
-}
-
-func envBool(key string, def bool) bool {
-	if v, err := strconv.ParseBool(os.Getenv(key)); err == nil {
-		return v
-	}
-	return def
-}
-
-func envFloat(key string, def float64) float64 {
-	if v, err := strconv.ParseFloat(os.Getenv(key), 64); err == nil {
-		return v
-	}
-	return def
 }

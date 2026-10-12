@@ -28,7 +28,11 @@ func (p *fakeProvider) Complete(context.Context, Request) (string, error) {
 
 func newTestGateway(t *testing.T, clock *fakeClock, ceiling float64, models ...Model) *Gateway {
 	t.Helper()
-	g, err := New(Config{CostCeilingUSD: ceiling, Alpha: 0.5, FailureThreshold: 2, Cooldown: time.Minute, Now: clock.Now}, models...)
+	g, err := New(models, Options{
+		Policy: CheapestFastestUnderCeiling{CeilingUSD: ceiling},
+		Health: NewEMATracker(EMAConfig{Alpha: 0.5, FailureThreshold: 2, Cooldown: time.Minute, Now: clock.Now}),
+		Now:    clock.Now,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,5 +164,26 @@ func TestAllModelsFailing(t *testing.T) {
 	_, err := g.Complete(context.Background(), Request{Prompt: "x"})
 	if err == nil || !strings.Contains(err.Error(), "a: boom") {
 		t.Fatalf("err = %v, want aggregated provider errors", err)
+	}
+}
+
+// A custom policy plugs in without changing the gateway (open/closed).
+type alwaysLast struct{}
+
+func (alwaysLast) Plan(_ Request, c []Candidate, _ time.Time) ([]Candidate, error) {
+	return c[len(c)-1:], nil
+}
+
+func TestCustomPolicy(t *testing.T) {
+	clock := &fakeClock{t: time.Unix(0, 0)}
+	g, err := New([]Model{
+		{Name: "a", Provider: &fakeProvider{clock: clock}},
+		{Name: "b", Provider: &fakeProvider{clock: clock}},
+	}, Options{Policy: alwaysLast{}, Now: clock.Now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r, _ := g.Complete(context.Background(), Request{Prompt: "x"}); r.Model != "b" {
+		t.Fatalf("got %s, want b", r.Model)
 	}
 }
