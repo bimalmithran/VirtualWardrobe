@@ -58,6 +58,10 @@ Day to day, from `frontend/`: `npm ci`, `npm test`, `npm run typecheck`, `npm ru
 | Docker | `docker compose --profile apk run --rm apk` (run at the repo root) | No Expo account needed. The image in `frontend/docker/` has Node 22, JDK 17, Android SDK 36, build-tools 36.0.0 and NDK 27.1, the versions RN 0.86 pins. It runs `npm ci`, `expo prebuild` and `./gradlew assembleRelease`, with Gradle and npm caches kept in volumes. |
 | Dev client | `npm run build:dev`, then `npx expo start` | Hot reload on the phone. |
 
+`frontend/patches/` fixes `onnxruntime-react-native` 1.24.3 for Gradle 9, which removed the
+`VersionNumber` class its `build.gradle` used. `patch-package` reapplies the fix on every
+`npm install`/`npm ci`, so EAS and Docker builds both get it. Drop the patch once upstream fixes it.
+
 Expo Go will **not** work, because it can't load ONNX Runtime. The app detects this and shows an
 error instead of crashing. The Docker APK is signed with the Expo template's debug keystore. That's
 fine for sideloading onto your own phones, but use EAS or your own keystore for anything you
