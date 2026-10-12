@@ -5,6 +5,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { File, Paths } from 'expo-file-system';
 import { router } from 'expo-router';
 
+import { syncCloset } from '../api/sync';
 import type { ModelKey } from '../config/models';
 import type { RGBAImage } from '../image/pixels';
 import { errorMessage, modelManager, useModelStatuses } from '../ml/modelManager';
@@ -108,6 +109,7 @@ export function IngestionFlow({ mode }: { mode: Mode }) {
             palette: result.palette,
             embedding: result.embedding,
           });
+          syncCloset(db).catch(() => {}); // upload in the background; retried later if offline
           if (!live()) return;
           setState({ kind: 'done', previewUri: garment.imageUri, result, match: null, garmentId: garment.id });
         } else {

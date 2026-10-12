@@ -12,6 +12,8 @@ export interface Garment {
   palette: PaletteEntry[];
   embedding: Float32Array | null;
   createdAt: number;
+  /** When the garment was uploaded to the Go backend; null while pending. */
+  syncedAt: number | null;
 }
 
 interface GarmentRow {
@@ -21,9 +23,10 @@ interface GarmentRow {
   palette_json: string;
   embedding: Uint8Array | null;
   created_at: number;
+  synced_at: number | null;
 }
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 /** Passed to <SQLiteProvider onInit>. Uses PRAGMA user_version for forward migrations. */
 export async function migrate(db: SQLiteDatabase) {
@@ -44,6 +47,9 @@ export async function migrate(db: SQLiteDatabase) {
       );
       CREATE INDEX IF NOT EXISTS garments_created ON garments (created_at DESC);
     `);
+  }
+  if (version < 2) {
+    await db.execAsync('ALTER TABLE garments ADD COLUMN synced_at INTEGER');
   }
   await db.execAsync(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 }
@@ -79,7 +85,7 @@ export async function insertGarment(
     file.delete(); // don't leave orphaned PNGs behind
     throw e;
   }
-  return { id: input.id, imageUri: file.uri, colorHex: input.colorHex, palette: input.palette, embedding: input.embedding, createdAt };
+  return { id: input.id, imageUri: file.uri, colorHex: input.colorHex, palette: input.palette, embedding: input.embedding, createdAt, syncedAt: null };
 }
 
 export async function listGarments(db: SQLiteDatabase): Promise<Garment[]> {
@@ -90,6 +96,18 @@ export async function listGarments(db: SQLiteDatabase): Promise<Garment[]> {
 export async function getGarment(db: SQLiteDatabase, id: string): Promise<Garment | null> {
   const row = await db.getFirstAsync<GarmentRow>('SELECT * FROM garments WHERE id = ?', id);
   return row ? fromRow(row) : null;
+}
+
+/** Garments not yet uploaded. Ones without an embedding can't be indexed server-side. */
+export async function listUnsynced(db: SQLiteDatabase): Promise<Garment[]> {
+  const rows = await db.getAllAsync<GarmentRow>(
+    'SELECT * FROM garments WHERE synced_at IS NULL AND embedding IS NOT NULL ORDER BY created_at',
+  );
+  return rows.map(fromRow);
+}
+
+export async function markSynced(db: SQLiteDatabase, id: string) {
+  await db.runAsync('UPDATE garments SET synced_at = ? WHERE id = ?', Date.now(), id);
 }
 
 export async function deleteGarment(db: SQLiteDatabase, garment: Garment) {
@@ -107,5 +125,6 @@ function fromRow(row: GarmentRow): Garment {
     // slice() copies into a fresh, 4-byte-aligned buffer before reinterpreting as floats.
     embedding: row.embedding ? new Float32Array(row.embedding.slice().buffer) : null,
     createdAt: row.created_at,
+    syncedAt: row.synced_at,
   };
 }

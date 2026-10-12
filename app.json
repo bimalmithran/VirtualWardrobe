@@ -55,7 +55,8 @@
                 "**/libc++_shared.so",
                 "**/libonnxruntime.so"
               ]
-            }
+            },
+            "usesCleartextTraffic": true
           }
         }
       ],

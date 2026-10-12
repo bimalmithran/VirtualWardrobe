@@ -3,6 +3,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 
+import { cloudEnabled, searchSimilar, type CloudMatch } from '../../api/client';
 import { Button } from '../../components/Button';
 import { MatchScoreCard } from '../../components/MatchScoreCard';
 import { deleteGarment, listGarments, type Garment } from '../../storage/closet';
@@ -62,6 +63,8 @@ export default function GarmentDetail() {
         </View>
       )}
 
+      {cloudEnabled && garment.embedding && <CloudSearch garment={garment} />}
+
       <Button
         title="Remove from closet"
         variant="secondary"
@@ -72,6 +75,51 @@ export default function GarmentDetail() {
         }}
       />
     </ScrollView>
+  );
+}
+
+/** Same query as the on-device list above, answered by pgvector's HNSW index on the server. */
+function CloudSearch({ garment }: { garment: Garment }) {
+  const [state, setState] = useState<{ busy: boolean; results: CloudMatch[] | null; error: string | null }>({
+    busy: false,
+    results: null,
+    error: null,
+  });
+
+  const run = async () => {
+    setState((s) => ({ ...s, busy: true, error: null }));
+    try {
+      const results = await searchSimilar(garment.embedding!, 6);
+      setState({ busy: false, results: results.filter((r) => r.client_item_id !== garment.id).slice(0, 5), error: null });
+    } catch (e) {
+      setState({ busy: false, results: null, error: e instanceof Error ? e.message : String(e) });
+    }
+  };
+
+  return (
+    <View style={styles.section}>
+      <Text style={[ui.h2, { marginBottom: 8 }]}>Cloud search (pgvector)</Text>
+      {garment.syncedAt === null && <Text style={ui.muted}>This garment hasn&apos;t been uploaded yet.</Text>}
+      {state.error && <Text style={[ui.muted, { color: colors.danger }]}>{state.error}</Text>}
+      {state.results && state.results.length === 0 && <Text style={ui.muted}>No other garments on the server yet.</Text>}
+      {state.results && state.results.length > 0 && (
+        <View style={styles.row}>
+          {state.results.map((r) => (
+            <Pressable
+              key={r.id}
+              onPress={() => router.replace({ pathname: '/garment/[id]', params: { id: r.client_item_id } })}
+              style={styles.similar}
+            >
+              <View style={[ui.checker, styles.thumb]}>
+                <Image source={{ uri: r.image_url }} style={styles.fill} resizeMode="contain" />
+              </View>
+              <Text style={ui.muted}>{(r.similarity * 100).toFixed(0)}% match</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+      <Button title="Search the cloud" variant="secondary" busy={state.busy} onPress={run} style={{ marginTop: 8 }} />
+    </View>
   );
 }
 

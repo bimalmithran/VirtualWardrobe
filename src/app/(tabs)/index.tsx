@@ -1,8 +1,10 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 
+import { cloudEnabled } from '../../api/client';
+import { onClosetSynced } from '../../api/sync';
 import { Button } from '../../components/Button';
 import { deleteGarment, listGarments, type Garment } from '../../storage/closet';
 import { colors, ui } from '../../theme';
@@ -21,6 +23,7 @@ export default function Closet() {
   }, [db]);
 
   useFocusEffect(load);
+  useEffect(() => onClosetSynced(load), [load]);
 
   const confirmDelete = (g: Garment) =>
     Alert.alert('Remove garment?', 'This deletes the image and its data from this device.', [
@@ -48,7 +51,13 @@ export default function Closet() {
       numColumns={COLUMNS}
       contentContainerStyle={styles.grid}
       columnWrapperStyle={{ gap: GAP }}
-      ListHeaderComponent={garments ? <Text style={[ui.muted, styles.count]}>{garments.length} items · long-press to remove</Text> : null}
+      ListHeaderComponent={
+        garments ? (
+          <Text style={[ui.muted, styles.count]}>
+            {garments.length} items · {syncLabel(garments)} · long-press to remove
+          </Text>
+        ) : null
+      }
       renderItem={({ item }) => (
         <Pressable
           onPress={() => router.push({ pathname: '/garment/[id]', params: { id: item.id } })}
@@ -61,6 +70,12 @@ export default function Closet() {
       )}
     />
   );
+}
+
+function syncLabel(garments: Garment[]) {
+  if (!cloudEnabled) return 'on-device only';
+  const pending = garments.filter((g) => g.syncedAt === null && g.embedding).length;
+  return pending === 0 ? 'all synced' : `${pending} waiting to sync`;
 }
 
 const styles = StyleSheet.create({
