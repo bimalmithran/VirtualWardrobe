@@ -58,6 +58,9 @@ type Deps struct {
 	Outfits  OutfitStore
 	LLM      Completer
 	LLMStats ModelStatsReporter
+	Privacy  PrivacyService
+	// Devices authenticates /api requests. Nil disables auth (AUTH_REQUIRED=false).
+	Devices DeviceRegistry
 	// Serves stored images; mounted at ImagesPrefix.
 	Images       http.Handler
 	ImagesPrefix string
@@ -74,17 +77,28 @@ func NewRouter(d Deps) http.Handler {
 	outfitH := &outfitHandler{outfits: d.Outfits, errs: errs}
 	llmH := &llmHandler{llm: d.LLM, stats: d.LLMStats, errs: errs}
 
+	privacyH := &privacyHandler{privacy: d.Privacy, errs: errs}
+	deviceH := &deviceHandler{reg: d.Devices, errs: errs}
+
+	// Routes that act for a user go through device authentication.
+	api := http.NewServeMux()
+	api.Handle("POST /api/users/profile", &profileHandler{profiles: d.Profiles, errs: errs})
+	api.HandleFunc("POST /api/users/consent", privacyH.consent)
+	api.HandleFunc("GET /api/users/me/export", privacyH.export)
+	api.HandleFunc("DELETE /api/users/me", privacyH.erase)
+	api.HandleFunc("POST /api/wardrobe/items", wardrobeH.create)
+	api.HandleFunc("DELETE /api/wardrobe/items/{client_item_id}", wardrobeH.delete)
+	api.HandleFunc("POST /api/wardrobe/search", wardrobeH.searchSimilar)
+	api.HandleFunc("POST /api/outfits", outfitH.save)
+	api.HandleFunc("GET /api/outfits", outfitH.list)
+	api.HandleFunc("DELETE /api/outfits/{client_outfit_id}", outfitH.delete)
+	api.HandleFunc("POST /api/llm/complete", llmH.complete)
+	api.HandleFunc("GET /api/llm/models", llmH.models)
+
 	mux := http.NewServeMux()
 	mux.Handle("GET /healthz", healthHandler{d.Health})
-	mux.Handle("POST /api/users/profile", &profileHandler{profiles: d.Profiles, errs: errs})
-	mux.HandleFunc("POST /api/wardrobe/items", wardrobeH.create)
-	mux.HandleFunc("DELETE /api/wardrobe/items/{client_item_id}", wardrobeH.delete)
-	mux.HandleFunc("POST /api/wardrobe/search", wardrobeH.searchSimilar)
-	mux.HandleFunc("POST /api/outfits", outfitH.save)
-	mux.HandleFunc("GET /api/outfits", outfitH.list)
-	mux.HandleFunc("DELETE /api/outfits/{client_outfit_id}", outfitH.delete)
-	mux.HandleFunc("POST /api/llm/complete", llmH.complete)
-	mux.HandleFunc("GET /api/llm/models", llmH.models)
+	mux.HandleFunc("POST /api/devices/enroll", deviceH.enroll)
+	mux.Handle("/api/", authenticate(d.Devices, errs, api))
 	if d.Images != nil {
 		mux.Handle("GET "+d.ImagesPrefix+"/", d.Images)
 	}

@@ -7,7 +7,9 @@ import { ModelSetup } from '../../components/ModelSetup';
 import { MODELS, type ModelKey } from '../../config/models';
 import { useProfile } from '../../features/profile/ProfileContext';
 import { useSelf } from '../../features/self/SelfContext';
-import { SEASON_LABELS } from '../../vision/personColouring';
+import { useConsent } from '../../features/privacy/ConsentContext';
+import { useI18n } from '../../i18n/I18nProvider';
+import { SUB_SEASONS } from '../../style/seasons';
 import { useModelStatuses } from '../../ml/modelStatus';
 import { useServices } from '../../services/ServicesProvider';
 import { ui } from '../../theme';
@@ -21,22 +23,31 @@ export default function ProfileTab() {
   const missing = KEYS.filter((k) => !models.files.isDownloaded(k) || statuses[k].state === 'downloading');
   const resident = KEYS.filter((k) => statuses[k].state === 'ready');
   const { colouring } = useSelf();
+  const { t } = useI18n();
+  const { allows } = useConsent();
 
   return (
     <View style={ui.screen}>
       <DigitalTwinForm
         key={profile?.updatedAt}
         initial={profile}
-        submitLabel="Save changes"
+        submitLabel={t('twin.save')}
         onSubmit={save}
+        cloudBackup={allows('cloud_sync')}
         footer={
           <View style={styles.models}>
             <Pressable onPress={() => router.push('/me')} style={[ui.card, styles.me]} accessibilityRole="button">
               <Text style={ui.h2}>Your colours</Text>
               <Text style={ui.muted}>
                 {colouring
-                  ? `${SEASON_LABELS[colouring.season]}. See what suits you and which colours to add.`
+                  ? `${SUB_SEASONS[colouring.subSeason].label}. See what suits you and which colours to add.`
                   : 'Add a photo of yourself to find your colours and get wardrobe suggestions.'}
+              </Text>
+            </Pressable>
+            <Pressable onPress={() => router.push('/privacy')} style={[ui.card, styles.me]} accessibilityRole="button">
+              <Text style={ui.h2}>{t('privacy.title')}</Text>
+              <Text style={ui.muted}>
+                {t('privacy.choices')} · {t('common.language')} · {t('privacy.rights')}
               </Text>
             </Pressable>
             {missing.length > 0 ? (

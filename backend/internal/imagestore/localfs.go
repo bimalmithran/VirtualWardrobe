@@ -86,3 +86,11 @@ func (n noDirListing) Open(name string) (http.File, error) {
 	}
 	return f, nil
 }
+
+// RemoveAll deletes every image stored for user.
+func (s *LocalFS) RemoveAll(_ context.Context, user domain.UserID) error {
+	if !user.Valid() {
+		return &domain.ValidationError{Field: "user_id", Reason: "must be a UUID"}
+	}
+	return os.RemoveAll(filepath.Join(s.dir, string(user)))
+}

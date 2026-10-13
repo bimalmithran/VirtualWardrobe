@@ -18,6 +18,7 @@ export interface SyncResult {
 
 /** What the UI and app shell use. */
 export interface CloudSync {
+  /** A server is configured and the user consented to cloud backup. */
   readonly enabled: boolean;
   /** Uploads one profile version. Throws on failure; the next syncAll() retries it. */
   syncProfile(profile: DigitalTwin): Promise<void>;
@@ -26,8 +27,16 @@ export interface CloudSync {
   onSynced(listener: (r: SyncResult) => void): () => void;
 }
 
+/** The slice of consent sync needs. */
+export interface SyncConsent {
+  allows(purpose: 'cloud_sync'): boolean;
+  /** Uploads a consent decision the server hasn't seen. */
+  syncPending(): Promise<void>;
+}
+
 export interface CloudSyncDeps {
   remote: ProfileRemote & GarmentRemote & OutfitRemote;
+  consent: SyncConsent;
   pending: PendingUploads;
   outfits: PendingOutfits;
   deletions: DeletionQueue;
@@ -41,7 +50,10 @@ export interface CloudSyncDeps {
  * best-effort mirror. Every upload is idempotent server-side, so retrying is always safe.
  */
 export class CloudSyncService implements CloudSync {
-  readonly enabled = true;
+  get enabled() {
+    return this.deps.consent.allows('cloud_sync');
+  }
+
   private synced = new Emitter<SyncResult>();
   private running: Promise<SyncResult> | null = null;
   private rerun = false;
@@ -51,6 +63,7 @@ export class CloudSyncService implements CloudSync {
   onSynced = (listener: (r: SyncResult) => void) => this.synced.subscribe(listener);
 
   async syncProfile(profile: DigitalTwin) {
+    if (!this.enabled) return;
     await this.deps.remote.saveProfile(profile);
     await this.deps.profileSync.markSynced(profile.updatedAt);
   }
@@ -78,6 +91,13 @@ export class CloudSyncService implements CloudSync {
   }
 
   private async pass(): Promise<SyncResult> {
+    // The consent record goes first: it is what entitles the server to the rest.
+    try {
+      await this.deps.consent.syncPending();
+    } catch (e) {
+      return { uploaded: 0, pending: 0, error: errorMessage(e) };
+    }
+    if (!this.enabled) return { uploaded: 0, pending: 0, error: null };
     const pending = await this.deps.pending.listUnsynced();
 
     // Profile first, even with no garments pending: it retries a profile save that failed

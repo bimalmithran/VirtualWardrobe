@@ -1,5 +1,6 @@
 import type { ContrastLevel, Depth, LabColor, PersonalColouring, Season, SelfReading, Undertone } from '../domain/types';
 import type { RGBAImage } from '../image/pixels';
+import { SUB_SEASONS, subSeasonFor } from '../style/seasons';
 import { labToRgb, rgbToHex, rgbToLab } from './color';
 
 /** Ignore the soft mask fringe, where background colour bleeds into the person. */
@@ -146,13 +147,16 @@ export function fuseColouring(readings: SelfReading[]): PersonalColouring | null
   const depth = skinDepth(skin);
   const contrast = contrastLevel(skin[0], hairs.length ? median(hairs) : null);
   const season = seasonFor(undertone, depth, contrast, skin);
+  const subSeason = subSeasonFor(season, depth, contrast);
   return {
     skinHex: rgbToHex(labToRgb(skin)),
     undertone,
     depth,
     contrast,
     season,
-    palette: SEASON_PALETTES[season],
+    subSeason,
+    source: 'photos',
+    palette: SUB_SEASONS[subSeason].palette,
     photoCount: readings.length,
   };
 }

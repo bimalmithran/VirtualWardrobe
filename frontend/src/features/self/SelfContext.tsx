@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 
 import type { PersonalColouring, SelfPhoto, Wearer } from '../../domain/types';
 import { useServices } from '../../services/ServicesProvider';
+import { effectiveColouring } from '../../style/seasons';
 import { fuseColouring } from '../../vision/personColouring';
 import type { Photo } from '../../vision/pipeline';
 import { useProfile } from '../profile/ProfileContext';
@@ -13,6 +14,7 @@ interface SelfContextValue {
   /** Analyses and stores a photo. Rejects with a user-readable message when it can't be read. */
   add(photo: Photo): Promise<SelfPhoto>;
   remove(photo: SelfPhoto): Promise<void>;
+  reload(): Promise<void>;
 }
 
 const SelfContext = createContext<SelfContextValue | null>(null);
@@ -21,6 +23,10 @@ const SelfContext = createContext<SelfContextValue | null>(null);
 export function SelfProvider({ children }: { children: ReactNode }) {
   const { self } = useServices();
   const [photos, setPhotos] = useState<SelfPhoto[]>([]);
+
+  const reload = useCallback(async () => {
+    setPhotos(await self.photos.list().catch(() => []));
+  }, [self]);
 
   useEffect(() => {
     self.photos.list().then(setPhotos).catch(() => setPhotos([]));
@@ -45,7 +51,7 @@ export function SelfProvider({ children }: { children: ReactNode }) {
   );
 
   const colouring = useMemo(() => fuseColouring(photos.map((p) => p.reading)), [photos]);
-  const value = useMemo(() => ({ photos, colouring, add, remove }), [photos, colouring, add, remove]);
+  const value = useMemo(() => ({ photos, colouring, add, remove, reload }), [photos, colouring, add, remove, reload]);
   return <SelfContext.Provider value={value}>{children}</SelfContext.Provider>;
 }
 
@@ -55,9 +61,17 @@ export function useSelf() {
   return ctx;
 }
 
-/** Who suggestions are for: the Digital Twin's undertone plus the colouring read from photos. */
+/**
+ * Who suggestions are for: the Digital Twin's undertone plus the colouring read from photos,
+ * or the 12-season type chosen on the Twin, which takes precedence.
+ */
 export function useWearer(): Wearer {
-  const undertone = useProfile().profile?.undertone ?? null;
+  const profile = useProfile().profile;
+  const undertone = profile?.undertone ?? null;
+  const chosen = profile?.season ?? null;
   const { colouring } = useSelf();
-  return useMemo(() => ({ undertone, colouring }), [undertone, colouring]);
+  return useMemo(
+    () => ({ undertone, colouring: effectiveColouring(colouring, chosen, undertone) }),
+    [undertone, colouring, chosen],
+  );
 }

@@ -6,11 +6,28 @@
 export type Undertone = 'warm' | 'cool' | 'neutral';
 export type BodyShape = 'rectangle' | 'triangle' | 'inverted-triangle' | 'hourglass' | 'oval';
 
+export type Torso = 'short' | 'balanced' | 'long';
+
+/** Optional body measurements, in centimetres. Null when not given. */
+export interface Proportions {
+  shoulderCm: number | null;
+  bustCm: number | null;
+  waistCm: number | null;
+  hipCm: number | null;
+  torso: Torso | null;
+}
+
+export const EMPTY_PROPORTIONS: Proportions = { shoulderCm: null, bustCm: null, waistCm: null, hipCm: null, torso: null };
+
 /** The user's Digital Twin. */
 export interface DigitalTwin {
   heightCm: number;
   bodyShape: BodyShape;
   undertone: Undertone;
+  /** Added in v2; profiles saved before then load with empty proportions. */
+  proportions: Proportions;
+  /** A 12-season type the user chose themselves (e.g. after a draping session). Overrides photo analysis. */
+  season: SubSeason | null;
   /** Doubles as the profile version for sync. */
   updatedAt: number;
 }
@@ -103,6 +120,11 @@ export interface NewGarment extends NewGarmentPhoto {
 export type Depth = 'light' | 'medium' | 'deep';
 export type ContrastLevel = 'low' | 'medium' | 'high';
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
+export type SubSeason =
+  | 'light-spring' | 'warm-spring' | 'clear-spring'
+  | 'light-summer' | 'cool-summer' | 'soft-summer'
+  | 'soft-autumn' | 'warm-autumn' | 'deep-autumn'
+  | 'deep-winter' | 'cool-winter' | 'clear-winter';
 
 /** CIELAB colour, [L*, a*, b*]. */
 export type LabColor = [number, number, number];
@@ -124,11 +146,14 @@ export interface SelfPhoto {
 
 /** The user's colouring, combined from all of their photos. */
 export interface PersonalColouring {
-  skinHex: string;
+  /** Null when the colouring comes from a season chosen by hand rather than photos. */
+  skinHex: string | null;
   undertone: Undertone;
   depth: Depth;
   contrast: ContrastLevel;
   season: Season;
+  subSeason: SubSeason;
+  source: 'photos' | 'twin';
   /** Colours that flatter this season, strongest first. */
   palette: string[];
   photoCount: number;

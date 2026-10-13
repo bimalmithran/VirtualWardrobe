@@ -1,6 +1,6 @@
 import type { Garment, PersonalColouring, Wearer } from '../domain/types';
 import { colorName, hexToRgb, rgbToLab, type Lab } from '../vision/color';
-import { SEASON_LABELS } from '../vision/personColouring';
+import { SUB_SEASONS } from './seasons';
 import { scoreUndertoneMatch, type MatchResult } from '../vision/undertoneMatch';
 
 /** Within this ΔE a colour counts as "in" the season palette; beyond FAR it is unrelated. */
@@ -33,7 +33,7 @@ export function scoreForWearer(hex: string, wearer: Wearer): MatchResult | null 
   const closeness = paletteCloseness(hex, colouring);
   const score = Math.round(0.5 * base.score + 0.5 * closeness);
   const verdict = score >= 75 ? 'Great match' : score >= 55 ? 'Works for you' : 'Not your strongest';
-  const season = SEASON_LABELS[colouring.season].split(':')[0];
+  const season = SUB_SEASONS[colouring.subSeason].label;
   const paletteNote =
     closeness >= 75
       ? ` It is in your ${season} palette.`

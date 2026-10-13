@@ -19,7 +19,7 @@ export function ColouringCard({ colouring, twinUndertone, onUseUndertone }: Prop
   return (
     <View style={[ui.card, styles.card]}>
       <View style={styles.row}>
-        <View style={[styles.skin, { backgroundColor: colouring.skinHex }]} />
+        <View style={[styles.skin, { backgroundColor: colouring.skinHex ?? colors.border }]} />
         <View style={styles.flex}>
           <Text style={ui.h2}>{SEASON_LABELS[colouring.season]}</Text>
           <Text style={ui.muted}>

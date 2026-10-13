@@ -128,3 +128,24 @@ func (r *Items) DeleteItem(ctx context.Context, user domain.UserID, item domain.
 	}
 	return url, mapErr(err)
 }
+
+// ListItems returns a user's garments, newest first, without their embeddings.
+func (r *Items) ListItems(ctx context.Context, user domain.UserID) ([]domain.Item, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT w.id, w.client_item_id, c.slug, w.image_url, w.primary_color_hex, w.metadata, w.created_at
+		FROM wardrobe_items w LEFT JOIN categories c ON c.id = w.category_id
+		WHERE w.user_id = $1 ORDER BY w.created_at DESC`, string(user))
+	if err != nil {
+		return nil, mapErr(err)
+	}
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (domain.Item, error) {
+		var (
+			it              domain.Item
+			clientID, color string
+			metadata        []byte
+		)
+		err := row.Scan(&it.ID, &clientID, &it.CategorySlug, &it.ImageURL, &color, &metadata, &it.CreatedAt)
+		it.ClientItemID, it.ColorHex, it.Metadata = domain.ClientItemID(clientID), domain.ColorHex(color), domain.Metadata(metadata)
+		return it, err
+	})
+}

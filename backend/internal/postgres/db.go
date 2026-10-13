@@ -3,6 +3,7 @@ package postgres
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 
@@ -69,4 +70,8 @@ func mapErr(err error) error {
 		return &domain.ValidationError{Field: pgErr.ColumnName, Reason: "rejected by database: " + pgErr.Message}
 	}
 	return err
+}
+
+func constantTimeEqual(a, b []byte) bool {
+	return subtle.ConstantTimeCompare(a, b) == 1
 }

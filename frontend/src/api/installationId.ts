@@ -1,19 +1,42 @@
-import * as SecureStore from 'expo-secure-store';
+import * as Crypto from 'expo-crypto';
+
+import type { KeyValueStore } from '../storage/keyValue';
+
+export interface DeviceCredentials {
+  userId: string;
+  /** 64 hex characters from the platform CSPRNG. The server keeps only its SHA-256. */
+  token: string;
+}
 
 export interface InstallationIdProvider {
   get(): Promise<string>;
 }
 
-const KEY = 'user_id_v1';
+/** Who this install is, for the API. */
+export interface DeviceIdentity extends InstallationIdProvider {
+  credentials(): Promise<DeviceCredentials>;
+  /** Forgets the identity, after the user erased their server data. A new one is made on next use. */
+  reset(): Promise<void>;
+}
+
+const USER_KEY = 'user_id_v1';
+const TOKEN_KEY = 'device_token_v1';
 
 /**
- * Stable anonymous id for this install, created on first use and kept in SecureStore.
- * Not a credential: the POC has no auth; the id only partitions data on the server.
+ * Anonymous per-install identity: a random user id plus a random secret, both kept in the
+ * keystore. The secret authenticates the install to the API, so nobody who learns the user
+ * id (it appears in image URLs) can act as this user.
  */
-export class SecureStoreInstallationId implements InstallationIdProvider {
-  private cached: Promise<string> | null = null;
+export class StoredDeviceIdentity implements DeviceIdentity {
+  private cached: Promise<DeviceCredentials> | null = null;
 
-  get(): Promise<string> {
+  constructor(private readonly store: KeyValueStore) {}
+
+  async get() {
+    return (await this.credentials()).userId;
+  }
+
+  credentials(): Promise<DeviceCredentials> {
     this.cached ??= this.loadOrCreate().catch((e) => {
       this.cached = null; // let the next call retry
       throw e;
@@ -21,19 +44,30 @@ export class SecureStoreInstallationId implements InstallationIdProvider {
     return this.cached;
   }
 
-  private async loadOrCreate() {
-    const existing = await SecureStore.getItemAsync(KEY);
-    if (existing) return existing;
-    const id = uuidV4();
-    await SecureStore.setItemAsync(KEY, id);
-    return id;
+  async reset() {
+    this.cached = null;
+    await this.store.remove(TOKEN_KEY);
+    await this.store.remove(USER_KEY);
+  }
+
+  private async loadOrCreate(): Promise<DeviceCredentials> {
+    // Installs from before device tokens keep their user id and get a token on first use.
+    let userId = await this.store.get(USER_KEY);
+    if (!userId) {
+      userId = Crypto.randomUUID();
+      await this.store.set(USER_KEY, userId);
+    }
+    let token = await this.store.get(TOKEN_KEY);
+    if (!token) {
+      token = toHex(await Crypto.getRandomBytesAsync(32));
+      await this.store.set(TOKEN_KEY, token);
+    }
+    return { userId, token };
   }
 }
 
-/** RFC 4122 v4. Hermes has no crypto.getRandomValues; Math.random is fine for a non-secret id. */
-function uuidV4() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-  });
+function toHex(bytes: Uint8Array) {
+  let s = '';
+  for (const b of bytes) s += b.toString(16).padStart(2, '0');
+  return s;
 }

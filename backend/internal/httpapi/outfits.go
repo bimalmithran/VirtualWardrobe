@@ -29,8 +29,13 @@ func (h *outfitHandler) save(w http.ResponseWriter, r *http.Request) {
 	if string(req.Metadata) == "null" {
 		req.Metadata = nil
 	}
+	user, err := actingUser(r, req.UserID)
+	if err != nil {
+		h.errs.write(w, err)
+		return
+	}
 	outfit, created, err := h.outfits.SaveOutfit(r.Context(), wardrobe.SaveOutfitInput{
-		UserID:         req.UserID,
+		UserID:         user,
 		ClientOutfitID: req.ClientOutfitID,
 		Name:           req.Name,
 		Occasion:       req.Occasion,
@@ -50,7 +55,11 @@ func (h *outfitHandler) save(w http.ResponseWriter, r *http.Request) {
 
 // list: GET /api/outfits?user_id=<uuid>
 func (h *outfitHandler) list(w http.ResponseWriter, r *http.Request) {
-	outfits, err := h.outfits.ListOutfits(r.Context(), r.URL.Query().Get("user_id"))
+	user, err := actingUser(r, r.URL.Query().Get("user_id"))
+	var outfits []domain.Outfit
+	if err == nil {
+		outfits, err = h.outfits.ListOutfits(r.Context(), user)
+	}
 	if err != nil {
 		h.errs.write(w, err)
 		return
@@ -63,7 +72,11 @@ func (h *outfitHandler) list(w http.ResponseWriter, r *http.Request) {
 
 // delete: DELETE /api/outfits/{client_outfit_id}?user_id=<uuid>
 func (h *outfitHandler) delete(w http.ResponseWriter, r *http.Request) {
-	if err := h.outfits.DeleteOutfit(r.Context(), r.URL.Query().Get("user_id"), r.PathValue("client_outfit_id")); err != nil {
+	user, err := actingUser(r, r.URL.Query().Get("user_id"))
+	if err == nil {
+		err = h.outfits.DeleteOutfit(r.Context(), user, r.PathValue("client_outfit_id"))
+	}
+	if err != nil {
 		h.errs.write(w, err)
 		return
 	}

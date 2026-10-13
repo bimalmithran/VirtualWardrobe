@@ -107,7 +107,7 @@ export default function Me() {
           <ColouringCard
             colouring={colouring}
             twinUndertone={profile?.undertone ?? null}
-            onUseUndertone={(undertone) => profile && save({ heightCm: profile.heightCm, bodyShape: profile.bodyShape, undertone })}
+            onUseUndertone={(undertone) => profile && save({ ...profile, undertone })}
           />
           {garments && <WardrobeForYou closet={garments} wearer={wearer} colouring={colouring} />}
         </>

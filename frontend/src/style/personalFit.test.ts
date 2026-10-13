@@ -25,6 +25,8 @@ const colouring = (season: PersonalColouring['season'], contrast: PersonalColour
   depth: 'medium',
   contrast,
   season,
+  subSeason: ({ spring: 'warm-spring', summer: 'cool-summer', autumn: 'warm-autumn', winter: 'cool-winter' } as const)[season],
+  source: 'photos',
   palette: SEASON_PALETTES[season],
   photoCount: 1,
 });

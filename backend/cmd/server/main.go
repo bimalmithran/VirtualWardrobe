@@ -51,7 +51,16 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	closet := wardrobe.NewCloset(postgres.NewItems(pool), images)
+	items := postgres.NewItems(pool)
+	closet := wardrobe.NewCloset(items, images)
+	users := postgres.NewUsers(pool)
+	outfitRepo := postgres.NewOutfits(pool)
+	var devices httpapi.DeviceRegistry
+	if cfg.AuthRequired {
+		devices = postgres.NewDevices(pool)
+	} else {
+		log.Warn("AUTH_REQUIRED=false: any client can act as any user id")
+	}
 
 	gateway, err := llmgateway.New(llmgateway.DemoModels(), llmgateway.Options{
 		Policy: llmgateway.CheapestFastestUnderCeiling{CeilingUSD: cfg.LLMCeilingUSD},
@@ -65,11 +74,13 @@ func run(log *slog.Logger) error {
 		Addr: cfg.Addr,
 		Handler: httpapi.NewRouter(httpapi.Deps{
 			Health:        pool,
-			Profiles:      wardrobe.NewProfiles(postgres.NewUsers(pool)),
+			Profiles:      wardrobe.NewProfiles(users),
+			Privacy:       wardrobe.NewPrivacy(users, items, outfitRepo, images),
+			Devices:       devices,
 			Items:         closet,
 			Deleter:       closet,
 			Search:        closet,
-			Outfits:       wardrobe.NewOutfits(postgres.NewOutfits(pool)),
+			Outfits:       wardrobe.NewOutfits(outfitRepo),
 			LLM:           gateway,
 			LLMStats:      gateway,
 			Images:        images.Handler(),

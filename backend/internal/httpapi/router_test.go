@@ -58,10 +58,17 @@ func (s *stubs) Complete(context.Context, llmgateway.Request) (llmgateway.Respon
 	return s.llmResp, s.llmErr
 }
 func (s *stubs) Stats() []llmgateway.ModelStats { return nil }
+func (s *stubs) RecordConsent(_ context.Context, c domain.Consent) (domain.Consent, error) {
+	return c, s.profileErr
+}
+func (s *stubs) Export(context.Context, domain.UserID) (wardrobe.Export, error) {
+	return wardrobe.Export{}, s.profileErr
+}
+func (s *stubs) Erase(context.Context, domain.UserID) error { return s.profileErr }
 
 func router(s *stubs, publicBase string) http.Handler {
 	return NewRouter(Deps{
-		Health: s, Profiles: s, Items: s, Deleter: s, Search: s, Outfits: s, LLM: s, LLMStats: s,
+		Health: s, Profiles: s, Items: s, Deleter: s, Search: s, Outfits: s, LLM: s, LLMStats: s, Privacy: s,
 		PublicBaseURL: publicBase, Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
 }

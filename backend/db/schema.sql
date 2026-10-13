@@ -99,3 +99,57 @@ CREATE INDEX IF NOT EXISTS outfit_items_item_idx ON outfit_items (item_id);
 -- Outfits built on the phone carry the phone's id, so uploads are idempotent like garments.
 ALTER TABLE outfits ADD COLUMN IF NOT EXISTS client_outfit_id TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS outfits_user_client_idx ON outfits (user_id, client_outfit_id);
+
+-- ---------------------------------------------------------------------------
+-- Indian ethnic wear is its own top-level category: it is worn as a complete
+-- look (a saree or a kurta set) rather than as a top plus a bottom.
+-- ---------------------------------------------------------------------------
+INSERT INTO categories (slug, name) VALUES ('ethnic', 'Indian Ethnic Wear')
+ON CONFLICT (slug) DO NOTHING;
+
+INSERT INTO categories (parent_id, slug, name)
+SELECT p.id, c.slug, c.name
+FROM (VALUES
+    ('ethnic', 'kurtas', 'Kurtas'), ('ethnic', 'sarees', 'Sarees'), ('ethnic', 'lehengas', 'Lehengas'),
+    ('ethnic', 'salwar-sets', 'Salwar sets'), ('ethnic', 'sherwanis', 'Sherwanis'), ('ethnic', 'mundu-dhoti', 'Mundu & dhoti')
+) AS c (parent_slug, slug, name)
+JOIN categories p ON p.slug = c.parent_slug
+ON CONFLICT (slug) DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- Digital Twin v2: optional proportions, a 12-season palette and UI language.
+-- ---------------------------------------------------------------------------
+ALTER TABLE users ADD COLUMN IF NOT EXISTS shoulder_cm SMALLINT CHECK (shoulder_cm BETWEEN 25 AND 80);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS bust_cm     SMALLINT CHECK (bust_cm BETWEEN 50 AND 200);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS waist_cm    SMALLINT CHECK (waist_cm BETWEEN 40 AND 200);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS hip_cm      SMALLINT CHECK (hip_cm BETWEEN 50 AND 200);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS torso       TEXT CHECK (torso IN ('short', 'balanced', 'long'));
+ALTER TABLE users ADD COLUMN IF NOT EXISTS season      TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS language    TEXT NOT NULL DEFAULT 'en';
+
+-- ---------------------------------------------------------------------------
+-- devices: one secret per install. The phone generates 32 random bytes, keeps
+-- them in the platform keystore and sends them as a bearer token; only the
+-- SHA-256 is stored. Not keyed to users, because a device enrols before it has
+-- saved a Digital Twin (consent is recorded first).
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS devices (
+    user_id      UUID PRIMARY KEY,
+    token_hash   BYTEA       NOT NULL CHECK (length(token_hash) = 32),
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ---------------------------------------------------------------------------
+-- consents: append-only ledger of the user's consent decisions (DPDP Act 2023
+-- s.6). The newest row per user is in force; older rows are the audit trail.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS consents (
+    id             BIGSERIAL PRIMARY KEY,
+    user_id        UUID        NOT NULL,
+    notice_version TEXT        NOT NULL,
+    language       TEXT        NOT NULL DEFAULT 'en',
+    purposes       JSONB       NOT NULL,
+    recorded_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS consents_user_idx ON consents (user_id, recorded_at DESC);

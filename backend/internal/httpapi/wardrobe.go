@@ -34,8 +34,13 @@ func (h *wardrobeHandler) create(w http.ResponseWriter, r *http.Request) {
 	if string(req.Metadata) == "null" {
 		req.Metadata = nil
 	}
+	user, err := actingUser(r, req.UserID)
+	if err != nil {
+		h.errs.write(w, err)
+		return
+	}
 	item, created, err := h.items.AddItem(r.Context(), wardrobe.AddItemInput{
-		UserID:       req.UserID,
+		UserID:       user,
 		ClientItemID: req.ClientItemID,
 		CategorySlug: req.CategorySlug,
 		ImageBase64:  req.ImageBase64,
@@ -67,8 +72,14 @@ func (h *wardrobeHandler) searchSimilar(w http.ResponseWriter, r *http.Request) 
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	// Authenticated searches are always scoped to the caller's own closet.
+	user, err := actingUser(r, req.UserID)
+	if err != nil {
+		h.errs.write(w, err)
+		return
+	}
 	matches, err := h.search.SearchSimilar(r.Context(), wardrobe.SearchQuery{
-		Embedding: req.Embedding, UserID: domain.UserID(req.UserID), Limit: req.Limit,
+		Embedding: req.Embedding, UserID: domain.UserID(user), Limit: req.Limit,
 	})
 	if err != nil {
 		h.errs.write(w, err)
@@ -85,7 +96,11 @@ func (h *wardrobeHandler) searchSimilar(w http.ResponseWriter, r *http.Request) 
 
 // delete removes one garment: DELETE /api/wardrobe/items/{client_item_id}?user_id=<uuid>.
 func (h *wardrobeHandler) delete(w http.ResponseWriter, r *http.Request) {
-	if err := h.deleter.DeleteItem(r.Context(), r.URL.Query().Get("user_id"), r.PathValue("client_item_id")); err != nil {
+	user, err := actingUser(r, r.URL.Query().Get("user_id"))
+	if err == nil {
+		err = h.deleter.DeleteItem(r.Context(), user, r.PathValue("client_item_id"))
+	}
+	if err != nil {
 		h.errs.write(w, err)
 		return
 	}

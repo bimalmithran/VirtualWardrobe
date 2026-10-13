@@ -42,6 +42,11 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
 }
 
+// writeErrorCode adds a stable machine-readable code the app can branch on.
+func writeErrorCode(w http.ResponseWriter, status int, code, msg string) {
+	writeJSON(w, status, map[string]string{"error": msg, "code": code})
+}
+
 // errorWriter maps domain and gateway errors to HTTP statuses in one place.
 type errorWriter struct {
 	log *slog.Logger
@@ -55,6 +60,14 @@ func (e errorWriter) write(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, domain.ErrUnknownItems):
 		writeError(w, http.StatusConflict, err.Error())
+	case errors.Is(err, domain.ErrUnauthorized):
+		writeErrorCode(w, http.StatusUnauthorized, "unauthorized", err.Error())
+	case errors.Is(err, domain.ErrForbidden):
+		writeErrorCode(w, http.StatusForbidden, "forbidden", err.Error())
+	case errors.Is(err, domain.ErrConsentRequired):
+		writeErrorCode(w, http.StatusForbidden, "consent_required", err.Error())
+	case errors.Is(err, domain.ErrQuotaExceeded):
+		writeErrorCode(w, http.StatusPaymentRequired, "quota_exceeded", err.Error())
 	case errors.Is(err, llmgateway.ErrNoEligibleModel):
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
 	default:

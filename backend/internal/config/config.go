@@ -15,6 +15,9 @@ type Config struct {
 	AutoMigrate   bool    // AUTO_MIGRATE, default true
 	LLMCeilingUSD float64 // LLM_COST_CEILING_USD, default 0.01
 	LLMEMAAlpha   float64 // LLM_EMA_ALPHA, default 0.3
+	// AuthRequired turns on per-install device tokens for /api. Only switch it off for
+	// local experiments: without it any client can act as any user id.
+	AuthRequired bool // AUTH_REQUIRED, default true
 }
 
 // FromEnv reads Config using getenv (os.Getenv in production, a map in tests).
@@ -27,6 +30,7 @@ func FromEnv(getenv func(string) string) (Config, error) {
 		AutoMigrate:   boolOr(getenv("AUTO_MIGRATE"), true),
 		LLMCeilingUSD: floatOr(getenv("LLM_COST_CEILING_USD"), 0.01),
 		LLMEMAAlpha:   floatOr(getenv("LLM_EMA_ALPHA"), 0.3),
+		AuthRequired:  boolOr(getenv("AUTH_REQUIRED"), true),
 	}
 	if c.DatabaseURL == "" {
 		return Config{}, errors.New("DATABASE_URL is required")

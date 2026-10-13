@@ -1,10 +1,17 @@
 import { ApiError } from '../api/httpClient';
 import type { UploadableGarment, UploadableOutfit } from '../api/wardrobeApi';
-import type { DigitalTwin, Garment, Outfit } from '../domain/types';
+import { EMPTY_PROPORTIONS, type DigitalTwin, type Garment, type Outfit } from '../domain/types';
 import type { PendingDeletion } from '../storage/deletionQueue';
 import { CloudSyncService, type CloudSyncDeps } from './cloudSync';
 
-const profile: DigitalTwin = { heightCm: 175, bodyShape: 'oval', undertone: 'warm', updatedAt: 42 };
+const profile: DigitalTwin = {
+  heightCm: 175,
+  bodyShape: 'oval',
+  undertone: 'warm',
+  proportions: EMPTY_PROPORTIONS,
+  season: null,
+  updatedAt: 42,
+};
 
 const garment = (id: string): Garment => ({
   id,
@@ -32,6 +39,7 @@ function setup(
     profile?: DigitalTwin | null;
     outfits?: Outfit[];
     deletions?: PendingDeletion[];
+    consented?: boolean;
   } = {},
 ) {
   const pending = [...(opts.garments ?? [])];
@@ -45,6 +53,7 @@ function setup(
   let syncedVersion = opts.syncedVersion ?? null;
 
   const deps: CloudSyncDeps = {
+    consent: { allows: () => opts.consented ?? true, syncPending: async () => {} },
     remote: {
       saveProfile: async (p) => {
         savedProfiles.push(p);
@@ -92,6 +101,9 @@ function setup(
       syncedVersion: async () => syncedVersion,
       markSynced: async (v) => {
         syncedVersion = v;
+      },
+      clearSynced: async () => {
+        syncedVersion = null;
       },
     },
   };
@@ -193,4 +205,15 @@ test('outfits upload after their garments; a 409 leaves them queued without an e
   s.onServer.add('missing');
   await s.service.syncAll();
   expect(s.pendingOutfits).toHaveLength(0);
+});
+
+test('nothing leaves the phone without cloud backup consent', async () => {
+  const s = setup({ garments: [garment('a')], consented: false });
+  const r = await s.service.syncAll();
+  expect(s.service.enabled).toBe(false);
+  expect(r).toEqual({ uploaded: 0, pending: 0, error: null });
+  expect(s.uploaded).toEqual([]);
+  expect(s.savedProfiles).toEqual([]);
+  await s.service.syncProfile(profile);
+  expect(s.savedProfiles).toEqual([]);
 });

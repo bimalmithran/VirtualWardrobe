@@ -3,6 +3,7 @@ import { Redirect, Tabs } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { useProfile } from '../../features/profile/ProfileContext';
+import { useI18n } from '../../i18n/I18nProvider';
 import { colors, ui } from '../../theme';
 
 const icon = (name: keyof typeof Ionicons.glyphMap) =>
@@ -12,6 +13,7 @@ const icon = (name: keyof typeof Ionicons.glyphMap) =>
 
 export default function TabLayout() {
   const { profile, loaded } = useProfile();
+  const { t } = useI18n();
 
   if (!loaded) {
     return (
@@ -30,11 +32,11 @@ export default function TabLayout() {
         sceneStyle: { backgroundColor: colors.bg },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: 'Closet', tabBarIcon: icon('grid-outline') }} />
-      <Tabs.Screen name="outfits" options={{ title: 'Outfits', tabBarIcon: icon('shirt-outline') }} />
-      <Tabs.Screen name="add" options={{ title: 'Add', headerShown: false, tabBarIcon: icon('add-circle-outline') }} />
-      <Tabs.Screen name="shop" options={{ title: 'Live Shop', headerShown: false, tabBarIcon: icon('scan-outline') }} />
-      <Tabs.Screen name="profile" options={{ title: 'Twin', tabBarIcon: icon('person-outline') }} />
+      <Tabs.Screen name="index" options={{ title: t('tabs.closet'), tabBarIcon: icon('grid-outline') }} />
+      <Tabs.Screen name="outfits" options={{ title: t('tabs.outfits'), tabBarIcon: icon('shirt-outline') }} />
+      <Tabs.Screen name="add" options={{ title: t('tabs.add'), headerShown: false, tabBarIcon: icon('add-circle-outline') }} />
+      <Tabs.Screen name="shop" options={{ title: t('tabs.shop'), headerShown: false, tabBarIcon: icon('scan-outline') }} />
+      <Tabs.Screen name="profile" options={{ title: t('tabs.twin'), tabBarIcon: icon('person-outline') }} />
     </Tabs>
   );
 }

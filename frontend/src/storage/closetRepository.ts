@@ -47,6 +47,11 @@ export interface PendingUploads {
   markSynced(uploaded: Pick<Garment, 'id' | 'revision'>): Promise<void>;
 }
 
+/** Forgets what the server has (after it was erased), so everything uploads again. */
+export interface SyncReset {
+  resetSyncState(): Promise<void>;
+}
+
 interface GarmentRow {
   id: string;
   image_uri: string;
@@ -79,7 +84,7 @@ const SELECT_GARMENTS =
  * SQLite holds metadata and embedding BLOBs; PNGs go to the image store. The garment row
  * caches the appearance fused from its photos, so lists and suggestions never re-fuse.
  */
-export class SqliteClosetRepository implements ClosetRepository, GarmentPhotos, PendingUploads {
+export class SqliteClosetRepository implements ClosetRepository, GarmentPhotos, PendingUploads, SyncReset {
   constructor(
     private readonly db: SQLiteDatabase,
     private readonly images: GarmentImageStore,
@@ -209,6 +214,14 @@ export class SqliteClosetRepository implements ClosetRepository, GarmentPhotos, 
   /** Compares the uploaded revision so a change made mid-upload is still sent next pass. */
   async markSynced(uploaded: Pick<Garment, 'id' | 'revision'>) {
     await this.db.runAsync('UPDATE garments SET synced_at = ? WHERE id = ? AND revision = ?', Date.now(), uploaded.id, uploaded.revision);
+  }
+
+  async resetSyncState() {
+    await this.db.withTransactionAsync(async () => {
+      await this.db.runAsync('UPDATE garments SET synced_at = NULL');
+      await this.db.runAsync('UPDATE outfits SET synced_at = NULL');
+      await this.db.runAsync('DELETE FROM deletions');
+    });
   }
 
   private insertPhoto(id: string, garmentId: string, imageUri: string, photo: NewGarmentPhoto, createdAt: number) {

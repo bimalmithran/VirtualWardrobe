@@ -34,4 +34,10 @@ export class FileGarmentImageStore implements GarmentImageStore {
   readBase64(uri: string) {
     return new File(uri).base64();
   }
+
+  /** Deletes every image in this store. */
+  clear() {
+    if (this.dir.exists) this.dir.delete();
+    this.dir.create({ intermediates: true, idempotent: true });
+  }
 }

@@ -39,3 +39,23 @@ type ImageStore interface {
 	// RemovePNG deletes a stored cutout; a missing file is not an error.
 	RemovePNG(ctx context.Context, user domain.UserID, item domain.ClientItemID) error
 }
+
+// AccountRepository holds what the DPDP rights need: consent records, the profile to
+// export, and erasure of everything keyed to a user.
+type AccountRepository interface {
+	GetProfile(ctx context.Context, user domain.UserID) (domain.Profile, error)
+	RecordConsent(ctx context.Context, c domain.Consent) (domain.Consent, error)
+	ConsentHistory(ctx context.Context, user domain.UserID) ([]domain.Consent, error)
+	LatestConsent(ctx context.Context, user domain.UserID) (domain.Consent, error)
+	DeleteUser(ctx context.Context, user domain.UserID) error
+}
+
+// ItemLister lists a user's garments for export.
+type ItemLister interface {
+	ListItems(ctx context.Context, user domain.UserID) ([]domain.Item, error)
+}
+
+// ImagePurger removes every image stored for a user.
+type ImagePurger interface {
+	RemoveAll(ctx context.Context, user domain.UserID) error
+}

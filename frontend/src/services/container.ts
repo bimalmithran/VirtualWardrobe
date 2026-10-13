@@ -3,8 +3,12 @@ import { Directory, Paths } from 'expo-file-system';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { configuredApiUrl, FetchHttpClient } from '../api/httpClient';
-import { SecureStoreInstallationId } from '../api/installationId';
+import { StoredDeviceIdentity } from '../api/installationId';
 import { WardrobeApi, type SimilarityRemote } from '../api/wardrobeApi';
+import { isLanguage } from '../i18n/I18nProvider';
+import { ConsentService } from '../privacy/consent';
+import { secureKeyValue, type KeyValueStore } from '../storage/keyValue';
+import { DeviceEraser, type LocalEraser } from '../storage/localEraser';
 import { ModelDownloader } from '../ml/modelDownloader';
 import type { ModelMemory } from '../ml/modelRunner';
 import { ModelStatusStore } from '../ml/modelStatus';
@@ -13,7 +17,7 @@ import { SqliteClosetRepository, type ClosetRepository, type GarmentPhotos } fro
 import { SqliteDeletionQueue } from '../storage/deletionQueue';
 import { FileGarmentImageStore } from '../storage/garmentImages';
 import { SqliteOutfitRepository, type OutfitRepository } from '../storage/outfitRepository';
-import { SecureStoreProfileRepository, type ProfileRepository } from '../storage/profileRepository';
+import { KeyValueProfileRepository, type ProfileRepository } from '../storage/profileRepository';
 import { SqliteSelfPhotoRepository, type SelfPhotoRepository } from '../storage/selfPhotoRepository';
 import { CloudSyncService, DisabledCloudSync, type CloudSync } from '../sync/cloudSync';
 import { SaliencyBackgroundRemover } from '../vision/backgroundRemoval';
@@ -32,8 +36,15 @@ export interface AppServices {
   outfits: OutfitRepository;
   profiles: ProfileRepository;
   sync: CloudSync;
+  /** Consent in force; every cloud feature checks it. */
+  consent: ConsentService;
+  /** Server API; null when no backend is configured. */
+  api: WardrobeApi | null;
   /** Null when no backend is configured. */
   similarity: SimilarityRemote | null;
+  /** Keystore-backed settings store (language, flags). */
+  settings: KeyValueStore;
+  eraser: LocalEraser;
   pipeline: GarmentPipeline;
   /** Photos of the user and the on-device analysis that reads their colouring. */
   self: { photos: SelfPhotoRepository; analyzer: SelfAnalyzer };
@@ -80,11 +91,22 @@ export function createAppServices(db: SQLiteDatabase, apiUrl = configuredApiUrl(
   const images = new FileGarmentImageStore();
   const closet = new SqliteClosetRepository(db, images, fuseViews);
   const outfits = new SqliteOutfitRepository(db);
-  const profiles = new SecureStoreProfileRepository();
-  const api = apiUrl ? new WardrobeApi(new FetchHttpClient(apiUrl), new SecureStoreInstallationId()) : null;
+  const kv = secureKeyValue;
+  const profiles = new KeyValueProfileRepository(kv);
+  const identity = new StoredDeviceIdentity(kv);
+  const language = async () => {
+    const saved = await kv.get('ui_language_v1');
+    return isLanguage(saved) ? saved : 'en';
+  };
+  const api = apiUrl ? new WardrobeApi(new FetchHttpClient(apiUrl, identity), identity, language) : null;
+  const consent = new ConsentService(kv, api, async () => {
+    await closet.resetSyncState();
+    await profiles.clearSynced();
+  });
 
   const sync: CloudSync = api
     ? new CloudSyncService({
+        consent,
         remote: api,
         pending: closet,
         outfits,
@@ -96,14 +118,20 @@ export function createAppServices(db: SQLiteDatabase, apiUrl = configuredApiUrl(
     : new DisabledCloudSync();
 
   const { selfAnalyzer, ...mlRest } = mlServices();
-  const selfPhotos = new SqliteSelfPhotoRepository(db, new FileGarmentImageStore(new Directory(Paths.document, 'me')));
+  const selfImages = new FileGarmentImageStore(new Directory(Paths.document, 'me'));
+  const selfPhotos = new SqliteSelfPhotoRepository(db, selfImages);
+  const eraser = new DeviceEraser(db, [images, selfImages], [() => profiles.clear(), () => consent.clear(), () => identity.reset()]);
   return {
     closet,
     photos: closet,
     outfits,
     profiles,
     sync,
+    consent,
+    api,
     similarity: api,
+    settings: kv,
+    eraser,
     self: { photos: selfPhotos, analyzer: selfAnalyzer },
     ...mlRest,
   };

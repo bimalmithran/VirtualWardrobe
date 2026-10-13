@@ -1,4 +1,5 @@
 import type { DigitalTwin } from '../domain/types';
+import type { ConsentRecord, PrivacyRemote } from '../privacy/consent';
 import { ApiError, type HttpClient } from './httpClient';
 import type { InstallationIdProvider } from './installationId';
 
@@ -51,19 +52,46 @@ export interface SimilarityRemote {
 }
 
 /** Maps app types to the Go API's JSON contract. */
-export class WardrobeApi implements ProfileRemote, GarmentRemote, OutfitRemote, SimilarityRemote {
+export class WardrobeApi implements ProfileRemote, GarmentRemote, OutfitRemote, SimilarityRemote, PrivacyRemote {
   constructor(
     private readonly http: HttpClient,
     private readonly installation: InstallationIdProvider,
+    /** The UI language, stored with the profile so notices can reach the user in it. */
+    private readonly language: () => Promise<string> = async () => 'en',
   ) {}
 
   async saveProfile(profile: DigitalTwin) {
+    const p = profile.proportions;
     await this.http.postJson('/api/users/profile', {
       user_id: await this.installation.get(),
       height_cm: Math.round(profile.heightCm),
       body_shape: profile.bodyShape,
       skin_undertone: profile.undertone,
+      proportions: { shoulder_cm: p.shoulderCm, bust_cm: p.bustCm, waist_cm: p.waistCm, hip_cm: p.hipCm, torso: p.torso ?? '' },
+      season: profile.season ?? '',
+      language: await this.language(),
     });
+  }
+
+  async recordConsent(c: Pick<ConsentRecord, 'noticeVersion' | 'language' | 'purposes'>) {
+    await this.http.postJson('/api/users/consent', {
+      notice_version: c.noticeVersion,
+      language: c.language,
+      purposes: c.purposes,
+    });
+  }
+
+  async eraseCloudData() {
+    try {
+      await this.http.delete('/api/users/me');
+    } catch (e) {
+      // Never enrolled means the server never had anything.
+      if (!(e instanceof ApiError && (e.status === 404 || e.status === 401))) throw e;
+    }
+  }
+
+  exportCloudData() {
+    return this.http.getJson<unknown>('/api/users/me/export');
   }
 
   async uploadGarment(g: UploadableGarment) {

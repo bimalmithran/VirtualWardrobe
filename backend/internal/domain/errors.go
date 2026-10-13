@@ -16,6 +16,15 @@ var (
 	ErrUnknownItems = errors.New("outfit references garments that have not been uploaded")
 	// ErrNotFound means the addressed resource does not exist for this user.
 	ErrNotFound = errors.New("not found")
+	// ErrUnauthorized means the request carries no valid device credentials (or the device
+	// is not enrolled yet).
+	ErrUnauthorized = errors.New("device not enrolled or credentials missing")
+	// ErrForbidden means the credentials do not belong to the user the request acts for.
+	ErrForbidden = errors.New("credentials do not match this user")
+	// ErrConsentRequired means the user has not consented to the purpose the request needs.
+	ErrConsentRequired = errors.New("consent for this purpose has not been given")
+	// ErrQuotaExceeded means a free-tier limit was reached.
+	ErrQuotaExceeded = errors.New("free plan limit reached")
 )
 
 // ValidationError reports a rejected input field. Transport layers map it to a 4xx.

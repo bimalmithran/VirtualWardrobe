@@ -76,3 +76,41 @@ func TestNewItemValidate(t *testing.T) {
 		t.Fatalf("ValidateAttributes should ignore the image: %v", err)
 	}
 }
+
+func TestProfileV2Validation(t *testing.T) {
+	ok := Profile{UserID: "11111111-1111-4111-8111-111111111111", HeightCm: 170, BodyShape: Hourglass, SkinUndertone: Warm}
+	if err := ok.Validate(); err != nil {
+		t.Fatalf("v1 profile rejected: %v", err)
+	}
+	waist, tiny := 70, 10
+	good := ok
+	good.Season, good.Language, good.Proportions = "deep-winter", "ml", Proportions{WaistCm: &waist, Torso: "long"}
+	if err := good.Validate(); err != nil {
+		t.Fatalf("v2 profile rejected: %v", err)
+	}
+	for name, p := range map[string]Profile{
+		"season":   func() Profile { p := ok; p.Season = "winter"; return p }(),
+		"language": func() Profile { p := ok; p.Language = "fr"; return p }(),
+		"torso":    func() Profile { p := ok; p.Proportions.Torso = "tall"; return p }(),
+		"waist":    func() Profile { p := ok; p.Proportions.WaistCm = &tiny; return p }(),
+	} {
+		if err := p.Validate(); !IsValidation(err) {
+			t.Errorf("%s: want validation error, got %v", name, err)
+		}
+	}
+}
+
+func TestConsentValidation(t *testing.T) {
+	c := Consent{UserID: "11111111-1111-4111-8111-111111111111", NoticeVersion: "2026-10", Language: "hi",
+		Purposes: map[Purpose]bool{PurposeCore: true, PurposeAnalytics: false}}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if !c.Allows(PurposeCore) || c.Allows(PurposeAnalytics) || c.Allows(PurposeAIStylist) {
+		t.Fatal("Allows mismatch")
+	}
+	c.Purposes["marketing"] = true
+	if err := c.Validate(); !IsValidation(err) {
+		t.Fatalf("unknown purpose accepted: %v", err)
+	}
+}
