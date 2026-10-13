@@ -190,10 +190,17 @@ export default function GarmentDetail() {
       <PersonalMatchCard hex={garment.colorHex} colour={fit} cut={cutFit(garment.category, garment.shape, profile)} />
       {garment.category && garment.category !== 'accessories' && (
         <Button
+          title="Build outfits around this"
+          onPress={() => router.navigate({ pathname: '/outfits', params: { anchor: garment.id } })}
+          style={styles.section}
+        />
+      )}
+      {garment.category && garment.category !== 'accessories' && (
+        <Button
           title="Try it on"
           variant="secondary"
           onPress={() => router.push({ pathname: '/try-on', params: { garment: garment.id } })}
-          style={styles.section}
+          style={styles.tight}
         />
       )}
 
@@ -231,4 +238,5 @@ const styles = StyleSheet.create({
   wear: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 12 },
   section: { marginTop: 20, marginBottom: 8 },
   orphan: { gap: 4, marginTop: 12, borderColor: colors.warn },
+  tight: { marginTop: 8 },
 });

@@ -1,25 +1,53 @@
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 
 import { Button } from '../../components/Button';
 import { OutfitCard } from '../../components/OutfitCard';
-import type { Garment } from '../../domain/types';
+import { Chips } from '../../components/Chips';
+import { OCCASIONS, WEATHER, type Garment, type Occasion, type Weather } from '../../domain/types';
 import { piecesOf, useWardrobe } from '../../features/outfits/useWardrobe';
 import { useWearer } from '../../features/self/SelfContext';
 import { relativeDay } from '../../lib/dates';
 import { useServices } from '../../services/ServicesProvider';
-import { scoreOutfit, suggestOutfits } from '../../style/outfitSuggestions';
-import { ui } from '../../theme';
+import { currentWeather, generateLooks } from '../../style/outfitGenerator';
+import { scoreOutfit } from '../../style/outfitSuggestions';
+import { colors, ui } from '../../theme';
+
+const OCCASION_OPTIONS = [{ key: 'any', label: 'Any occasion' }, ...OCCASIONS.map((o) => ({ key: o, label: cap(o) }))];
+const WEATHER_OPTIONS = WEATHER.map((w) => ({ key: w, label: cap(w) }));
+function cap(s: string) {
+  return s[0].toUpperCase() + s.slice(1);
+}
 
 export default function Outfits() {
   const { closet, outfits: outfitRepo, sync } = useServices();
   const wearer = useWearer();
   const { garments, outfits, reload } = useWardrobe();
   const [busy, setBusy] = useState<string | null>(null);
+  const params = useLocalSearchParams<{ anchor?: string }>();
+  const [anchorId, setAnchorId] = useState<string | null>(params.anchor ?? null);
+  const [occasion, setOccasion] = useState<Occasion | 'any'>('any');
+  const [weather, setWeather] = useState<Weather>(() => currentWeather());
+  const { width } = useWindowDimensions();
 
+  // Opening the tab from a garment's "Build outfits around this" selects it.
+  const [lastParam, setLastParam] = useState(params.anchor);
+  if (params.anchor !== lastParam) {
+    setLastParam(params.anchor);
+    setAnchorId(params.anchor ?? null);
+  }
+
+  const anchor = garments?.find((g) => g.id === anchorId);
+  const pickable = useMemo(() => (garments ?? []).filter((g) => g.category && g.category !== 'accessories'), [garments]);
   // Recomputed when garments change (e.g. after "Wear today"), so suggestions rotate.
-  const suggestions = useMemo(() => (garments ? suggestOutfits(garments, wearer, 3) : []), [garments, wearer]);
+  const looks = useMemo(
+    () =>
+      garments
+        ? generateLooks(garments, wearer, { anchor, occasion: occasion === 'any' ? null : occasion, weather, limit: 5 })
+        : [],
+    [garments, wearer, anchor, occasion, weather],
+  );
   const untagged = garments?.filter((g) => g.category === null).length ?? 0;
 
   const run = async (key: string, work: () => Promise<unknown>) => {
@@ -34,7 +62,8 @@ export default function Outfits() {
 
   const save = (pieces: Garment[], key: string) =>
     run(key, async () => {
-      const outfit = await outfitRepo.create({ name: `Look ${outfits.length + 1}`, itemIds: pieces.map((g) => g.id) });
+      const name = occasion === 'any' ? `Look ${outfits.length + 1}` : `${cap(occasion)} look ${outfits.length + 1}`;
+      const outfit = await outfitRepo.create({ name, itemIds: pieces.map((g) => g.id) });
       sync.syncAll().catch(() => {});
       router.push({ pathname: '/outfit/[id]', params: { id: outfit.id } });
     });
@@ -45,35 +74,67 @@ export default function Outfits() {
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={styles.content}>
-      <Text style={ui.h2}>Suggested for you</Text>
-      <Text style={ui.muted}>
-        Ranked by colour harmony,{' '}
-        {wearer.colouring ? `your ${wearer.colouring.season} colouring and contrast` : `your ${wearer.undertone ?? ''} undertone`}, and what you
-        haven&apos;t worn lately.
-      </Text>
+      <Text style={ui.h2}>Today&apos;s outfit</Text>
+      <Text style={ui.muted}>Start from a piece you want to wear, or let the closet decide.</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.anchors}>
+        <Pressable
+          onPress={() => setAnchorId(null)}
+          style={[styles.anchor, styles.anyAnchor, !anchor && styles.anchorActive]}
+          accessibilityRole="button"
+          accessibilityState={{ selected: !anchor }}
+        >
+          <Text style={ui.body}>Any</Text>
+        </Pressable>
+        {pickable.map((g) => (
+          <Pressable
+            key={g.id}
+            onPress={() => setAnchorId(g.id === anchorId ? null : g.id)}
+            style={[ui.checker, styles.anchor, anchorId === g.id && styles.anchorActive]}
+            accessibilityRole="button"
+            accessibilityLabel={`Build outfits around this ${g.category}`}
+            accessibilityState={{ selected: anchorId === g.id }}
+          >
+            <Image source={{ uri: g.imageUri }} style={styles.fill} resizeMode="contain" />
+          </Pressable>
+        ))}
+      </ScrollView>
+      <Chips options={OCCASION_OPTIONS} selected={occasion} onSelect={(o) => setOccasion(o as Occasion | 'any')} scroll />
+      <Chips options={WEATHER_OPTIONS} selected={weather} onSelect={setWeather} />
+
       {!wearer.colouring && (
         <Pressable onPress={() => router.push('/me')} style={[ui.card, styles.gap]}>
           <Text style={ui.h2}>Get suggestions for your colouring</Text>
           <Text style={ui.muted}>Add a photo of yourself and the app reads your skin tone and contrast, on this phone only.</Text>
         </Pressable>
       )}
-      {suggestions.length === 0 ? (
+      {looks.length === 0 ? (
         <View style={[ui.card, styles.gap]}>
-          <Text style={ui.body}>Tag at least one top and one bottom to get outfit suggestions.</Text>
+          <Text style={ui.body}>
+            {anchor ? 'Nothing in your closet completes an outfit with this piece yet.' : 'Tag at least one top and one bottom, or an ethnic set, to get outfit suggestions.'}
+          </Text>
           {untagged > 0 && <Text style={ui.muted}>{untagged} garment(s) in your closet have no category yet. Open one to tag it.</Text>}
         </View>
       ) : (
-        suggestions.map((s, i) => {
-          const key = s.garments.map((g) => g.id).join('+');
-          return (
-            <OutfitCard key={key} title={`Option ${i + 1}`} garments={s.garments} score={s.score} style={styles.gap}>
-              <View style={styles.actions}>
-                <Button title="Wear today" variant="secondary" busy={busy === `w${key}`} onPress={() => wear(s.garments, `w${key}`)} style={styles.flex} />
-                <Button title="Save outfit" busy={busy === `s${key}`} onPress={() => save(s.garments, `s${key}`)} style={styles.flex} />
-              </View>
-            </OutfitCard>
-          );
-        })
+        <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={styles.gap} snapToInterval={width - 24} decelerationRate="fast">
+          {looks.map((l, i) => {
+            const key = l.garments.map((g) => g.id).join('+');
+            return (
+              <OutfitCard
+                key={key}
+                title={`Option ${i + 1} of ${looks.length}`}
+                garments={l.garments}
+                score={l.score}
+                style={[styles.slide, { width: width - 40 }]}
+                onPressGarment={(g) => router.push({ pathname: '/garment/[id]', params: { id: g.id } })}
+              >
+                <View style={styles.actions}>
+                  <Button title="Wear today" variant="secondary" busy={busy === `w${key}`} onPress={() => wear(l.garments, `w${key}`)} style={styles.flex} />
+                  <Button title="Save outfit" busy={busy === `s${key}`} onPress={() => save(l.garments, `s${key}`)} style={styles.flex} />
+                </View>
+              </OutfitCard>
+            );
+          })}
+        </ScrollView>
       )}
 
       <View style={[styles.row, styles.section]}>
@@ -103,4 +164,10 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: 8, marginTop: 4 },
   flex: { flex: 1 },
   small: { paddingVertical: 8 },
+  anchors: { gap: 8, paddingVertical: 8 },
+  anchor: { width: 64, height: 76, borderRadius: 10, overflow: 'hidden', borderWidth: 2, borderColor: 'transparent' },
+  anyAnchor: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderColor: colors.border },
+  anchorActive: { borderColor: colors.accent },
+  fill: { width: '100%', height: '100%' },
+  slide: { marginRight: 16 },
 });

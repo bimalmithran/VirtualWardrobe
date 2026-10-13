@@ -154,3 +154,22 @@ deliberately left out.
   (e.g. IDM-VTON) and is a possible premium upgrade.
 - MoveNet's output order (y, x, score) is from Google's model card; I could not run it on a
   real photo of a person here, so the first on-device test should confirm placement.
+
+## 5a. Outfits
+
+- **One generator** (`style/outfitGenerator.ts`) serves the Outfits tab, Live Shop and (next)
+  the stylist chat, so every surface agrees on what a good look is.
+- **Anchor piece**: pick any closet piece (or come from a garment page via "Build outfits
+  around this"); every suggestion contains it. "Any" lets the closet decide.
+- **Score = 65% base (colour harmony + suits-you + contrast + recency) + 15% weather + 20%
+  occasion** (when one is chosen), minus a penalty when two busy patterns meet, +3 when the
+  look has shoes. Shown as four labelled bars on each card, not just a single number.
+- **Weather defaults to India's current season** by month (summer Mar–Jun, monsoon Jul–Sep,
+  winter Oct–Feb). Monsoon penalises pale bottoms and heavy coats; summer penalises layers.
+- **Untagged pieces get default occasions from their subtype** (sneakers → casual/sport,
+  sherwani → wedding/festive), so suggestions work before the user tags anything.
+- **Shoes are required when a suitable pair exists**, and a layer is required in winter;
+  scoring picks which, not whether. (Pure score maximisation dropped both, because each
+  extra piece is another chance of a colour clash.)
+- **Carousel**: the top 5 looks are paged horizontally, with no main piece repeated, so the
+  options are real alternatives.
