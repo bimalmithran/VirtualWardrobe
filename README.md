@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| `frontend/` | Expo SDK 57 Android app. All computer vision runs on the phone: junk filter, background removal (RMBG-1.4), K-Means colour, 512-d MobileCLIP embedding. |
+| `frontend/` | Expo SDK 57 Android app. All computer vision runs on the phone: junk filter, background removal (RMBG-1.4), K-Means colour, 512-d MobileCLIP embedding, fusion of several photos per garment, and personal colour analysis from photos of the user. |
 | `backend/` | Go 1.25 API on PostgreSQL 17 + pgvector. It stores what the phone produced (PNG cutout, hex colour, vector), runs similarity search over it, and hosts the LLM gateway. |
 | `docker-compose.yml` | Runs the backend stack and, as an opt-in profile, builds the APK. |
 
@@ -31,14 +31,16 @@ after changing it.
 | Tab / screen | What it does |
 |---|---|
 | **Closet** | Grid of background-removed garments. Filter by category, favourites or untagged. Long-press to remove. |
-| **Garment** | Photo strip: add more photos of the same garment (back, close-up, other light) and its colour and style vector are fused across all of them; long-press a photo to remove it. Category tag, ♥ favourite, "Wore it today" with wear count and last-worn date, undertone match score, on-device and cloud (pgvector) similar items. |
-| **Outfits** | Up to three suggested looks (top + bottom + best shoes) ranked by colour harmony, Digital Twin undertone and what you haven't worn in the last two days. Save a suggestion or build your own, see its live score, and mark it worn. |
+| **Garment** | Photo strip: add more photos of the same garment (back, close-up, other light) and its colour and style vector are fused across all of them; long-press a photo to remove it. Category tag, ♥ favourite, "Wore it today" with wear count and last-worn date, colour breakdown, a "suits you" score (undertone, plus your season palette once you have added photos of yourself), on-device and cloud (pgvector) similar items. |
+| **Outfits** | Up to three suggested looks (top + bottom + best shoes) ranked by colour harmony, how well the pieces near your face suit you (Digital Twin undertone, plus season palette and light-dark contrast when you have photos of yourself) and what you haven't worn in the last two days. Save a suggestion or build your own, see its live score, and mark it worn. |
 | **Add** | Camera → junk filter → background removal → K-Means colour → MobileCLIP vector, then tag the category on the result screen, and optionally add more photos of the same garment. |
-| **Live Shop** | Scan a shirt in a store and get its match score against your undertone. Nothing is saved. |
-| **Twin** | Edit the Digital Twin and manage on-device model memory. |
+| **Live Shop** | Scan a shirt in a store and get its match score against your undertone and, if you have added photos of yourself, your season palette. Nothing is saved. |
+| **Twin** | Edit the Digital Twin, open **Your colours**, and manage on-device model memory. |
 | **Your colours** (from Twin or Outfits) | Take a selfie or upload photos of yourself. On the phone only, the app cuts you out (RMBG), finds skin pixels and reads skin tone, undertone, depth (ITA°) and skin-to-hair contrast, combined across photos into a colour season and palette. Shows the closet ranked by how well each piece suits you and the palette colours your closet is missing, and offers to apply the detected undertone to the Twin. Outfit scores, garment match scores and Live Shop then use your palette and contrast too. The photos are never uploaded. |
 
-Category edits, removed garments and outfits all sync to the backend (see below).
+Category edits, added or removed garment photos (as the re-fused colour and vector), removed
+garments and outfits all sync to the backend (see below). Photos of the user never leave the phone,
+and extra garment photos stay on it too: the server keeps each garment's main cutout.
 
 ## Frontend (`frontend/`)
 
@@ -74,9 +76,17 @@ Day to day, from `frontend/`: `npm ci`, `npm test`, `npm run typecheck`, `npm ru
 | Docker | `docker compose --profile apk run --rm apk` (run at the repo root) | No Expo account needed. The image in `frontend/docker/` has Node 22, JDK 17, Android SDK 36, build-tools 36.0.0 and NDK 27.1, the versions RN 0.86 pins. It runs `npm ci`, `expo prebuild` and `./gradlew assembleRelease`, with Gradle and npm caches kept in volumes. |
 | Dev client | `npm run build:dev`, then `npx expo start` | Hot reload on the phone. |
 
-`frontend/patches/` fixes `onnxruntime-react-native` 1.24.3 for Gradle 9, which removed the
-`VersionNumber` class its `build.gradle` used. `patch-package` reapplies the fix on every
-`npm install`/`npm ci`, so EAS and Docker builds both get it. Drop the patch once upstream fixes it.
+`frontend/patches/` makes two fixes to `onnxruntime-react-native` 1.24.3, and `patch-package`
+reapplies them on every `npm install`/`npm ci`, so EAS and Docker builds both get them:
+
+- Gradle 9 removed the `VersionNumber` class its `build.gradle` used.
+- It ships a legacy `unimodule.json`, which makes Expo autolinking treat it as an Expo module and
+  skip React Native autolinking. Its `OnnxruntimePackage` was then never registered,
+  `NativeModules.Onnxruntime` was `null`, and the app crashed on its first background removal. The
+  patch deletes the file. Check with
+  `npx expo-modules-autolinking react-native-config --platform android`, which must list the package.
+
+Drop each fix once upstream ships it.
 
 Expo Go will **not** work, because it can't load ONNX Runtime. The app detects this and shows an
 error instead of crashing. The Docker APK is signed with the Expo template's debug keystore. That's
@@ -117,6 +127,9 @@ Apache-2.0 drop-in replacement; switch `MODELS.segmentation` to it before shippi
 - Only the focused tab mounts a camera, and the camera is unmounted while processing.
 - Model downloads are size-verified, so a truncated file can't crash ORT's parser.
 - Sync uploads one base64 PNG at a time.
+- Extra garment photos and photos of the user go through the same `SessionPool`, one photo at a
+  time. Fusion only needs each photo's small palette and 512-d vector, which are stored, so no
+  earlier image is decoded again.
 
 ### Architecture
 
@@ -126,16 +139,22 @@ src/services/             container.ts = composition root (the only place concre
                           ServicesProvider.tsx exposes AppServices (typed by interfaces) to React
 src/domain/types.ts       shared data types, no dependencies
 src/features/ingestion/   IngestionScreen (container) · useIngestion (state machine) ·
-                          modes.ts (IngestionMode strategies: closet, shop) · components/ (views)
+                          modes.ts (IngestionMode strategies: closet, add-photo, shop) · components/ (views)
 src/features/profile/     ProfileContext (React state; persistence and sync delegated)
+src/features/self/        SelfContext (user photos + fused colouring; useWearer for suggestions) ·
+                          ColouringCard · WardrobeForYou
 src/features/closet/      CloudSearchPanel
 src/features/outfits/     useWardrobe (garments + outfits, refreshed on focus and after sync)
-src/style/                outfitSuggestions: LCh colour-harmony + undertone scoring, pure and unit-tested
+src/style/                outfitSuggestions (LCh colour harmony + personal fit + contrast) ·
+                          personalFit (fit for a Wearer, closet ranking, colours to add); pure, unit-tested
 src/vision/               GarmentPipeline + stages behind interfaces (BackgroundRemover,
-                          GarmentEmbedder, PaletteExtractor); pure colour, junk and similarity math
+                          GarmentEmbedder, PaletteExtractor); pure colour, junk and similarity math ·
+                          fusion (multi-photo palettes + embeddings) · personColouring (skin, depth,
+                          undertone, contrast, season) · selfAnalyzer (SelfAnalyzer for photos of the user)
 src/ml/                   ModelStatusStore (observable) · ModelDownloader (files) ·
                           SessionPool (implements ModelRunner + ModelMemory) · ort.ts (lazy native load)
-src/storage/              SqliteClosetRepository (ClosetRepository + PendingUploads) ·
+src/storage/              SqliteClosetRepository (ClosetRepository + GarmentPhotos + PendingUploads) ·
+                          SqliteSelfPhotoRepository (phone-only photos of the user) ·
                           SqliteOutfitRepository (OutfitRepository + PendingOutfits) ·
                           SqliteDeletionQueue (server deletes owed) ·
                           FileGarmentImageStore · SecureStoreProfileRepository · migrations
@@ -148,15 +167,18 @@ How SOLID maps onto this layout:
 - **Single responsibility.** Downloading models, holding sessions and broadcasting status are
   three classes. Transport, identity and endpoints are three modules. The ingestion screen is
   split into a state machine, strategies and views.
-- **Open/closed.** A new capture flow is a new `IngestionMode`, and a new model is a new
-  `BackgroundRemover`/`GarmentEmbedder`. `GarmentPipeline` and `useIngestion` stay unchanged.
+- **Open/closed.** A new capture flow is a new `IngestionMode` (adding photos to a garment was
+  exactly that), and a new model is a new `BackgroundRemover`/`GarmentEmbedder`. `GarmentPipeline`
+  and `useIngestion` stay unchanged.
 - **Liskov substitution.** `DisabledCloudSync` stands in for `CloudSyncService` everywhere, and test
   fakes stand in for repositories and remotes.
 - **Interface segregation.** Sync sees `PendingUploads`, not the whole closet repository, and
-  `GarmentImageReader`, not the full image store. Vision stages see `ModelRunner`, not the session
-  pool.
+  `GarmentImageReader`, not the full image store. Screens that only list garments see
+  `ClosetRepository`; the photo strip and add-photo flow see `GarmentPhotos`. Vision stages see
+  `ModelRunner`, not the session pool.
 - **Dependency inversion.** Vision, sync and screens depend on interfaces. Only
-  `services/container.ts` imports concrete storage, HTTP and ML classes.
+  `services/container.ts` imports concrete storage, HTTP and ML classes. The closet repository gets
+  its `AppearanceFuser` injected, so storage never imports vision code.
 
 ### How the phone syncs
 
@@ -165,8 +187,10 @@ How SOLID maps onto this layout:
 1. Profile, because items have a foreign key to users.
 2. Queued deletes. Removing a garment or outfit the server has already seen writes a tombstone to
    the `deletions` table in the same transaction. A 404 counts as done.
-3. Garments with `synced_at IS NULL`. Changing a garment's category clears `synced_at`, so it is
-   re-uploaded. `markSynced` checks the uploaded category, so an edit made mid-upload is not lost.
+3. Garments with `synced_at IS NULL`. Changing a garment's category, or adding or removing one of
+   its photos, clears `synced_at` and bumps its `revision`, so it is re-uploaded with the re-fused
+   colour and vector. `markSynced` only marks the revision it uploaded, so a change made mid-upload
+   goes up on the next pass. Metadata carries the palette and `photo_count`.
 4. Outfits with `synced_at IS NULL`. The server answers 409 while any of an outfit's garments is
    still missing. The outfit stays queued with no error reported, and goes up on a later pass.
 
