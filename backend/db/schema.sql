@@ -153,3 +153,92 @@ CREATE TABLE IF NOT EXISTS consents (
     recorded_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS consents_user_idx ON consents (user_id, recorded_at DESC);
+
+-- ---------------------------------------------------------------------------
+-- Monetisation.
+-- entitlements: premium status, written by the RevenueCat webhook (the store
+-- receipt is validated by RevenueCat). usage_counters: per-day metering of
+-- costly cloud features for the free plan.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS entitlements (
+    user_id     UUID        NOT NULL,
+    entitlement TEXT        NOT NULL,
+    expires_at  TIMESTAMPTZ,            -- NULL = lifetime
+    product_id  TEXT        NOT NULL DEFAULT '',
+    store       TEXT        NOT NULL DEFAULT '',
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, entitlement)
+);
+
+CREATE TABLE IF NOT EXISTS usage_counters (
+    user_id UUID    NOT NULL,
+    feature TEXT    NOT NULL,
+    day     DATE    NOT NULL,
+    count   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, feature, day)
+);
+
+-- Webhook deliveries already applied, so RevenueCat retries are idempotent.
+CREATE TABLE IF NOT EXISTS webhook_events (
+    id          TEXT PRIMARY KEY,
+    received_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ---------------------------------------------------------------------------
+-- Affiliate "complete the look": an optional partner product feed, and a log
+-- of outbound clicks (for commission reconciliation). Clicks are not tied to
+-- users: only an hourly bucket and the partner are kept.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS affiliate_products (
+    id         BIGSERIAL PRIMARY KEY,
+    partner    TEXT    NOT NULL,
+    title      TEXT    NOT NULL,
+    category   TEXT    NOT NULL,
+    color_hex  CHAR(7) NOT NULL CHECK (color_hex ~ '^#[0-9A-F]{6}$'),
+    price_inr  INTEGER,
+    image_url  TEXT    NOT NULL,
+    url        TEXT    NOT NULL,
+    active     BOOLEAN NOT NULL DEFAULT true
+);
+CREATE INDEX IF NOT EXISTS affiliate_products_category_idx ON affiliate_products (category) WHERE active;
+
+CREATE TABLE IF NOT EXISTS affiliate_clicks (
+    id         BIGSERIAL PRIMARY KEY,
+    partner    TEXT        NOT NULL,
+    category   TEXT        NOT NULL DEFAULT '',
+    clicked_at TIMESTAMPTZ NOT NULL DEFAULT date_trunc('hour', now())
+);
+
+-- ---------------------------------------------------------------------------
+-- Peer-to-peer resale. Listings are public (anyone with the link can view);
+-- buyers reach sellers through inquiries, never by seeing their contact details.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS listings (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id        UUID        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    client_item_id TEXT        NOT NULL,
+    title          TEXT        NOT NULL CHECK (length(title) BETWEEN 3 AND 80),
+    description    TEXT        NOT NULL DEFAULT '' CHECK (length(description) <= 1000),
+    price_inr      INTEGER     NOT NULL CHECK (price_inr BETWEEN 1 AND 1000000),
+    condition      TEXT        NOT NULL CHECK (condition IN ('new', 'like-new', 'good', 'fair')),
+    size_label     TEXT        NOT NULL DEFAULT '',
+    category       TEXT        NOT NULL DEFAULT '',
+    color_hex      CHAR(7)     NOT NULL CHECK (color_hex ~ '^#[0-9A-F]{6}$'),
+    city           TEXT        NOT NULL DEFAULT '',
+    image_url      TEXT        NOT NULL,
+    status         TEXT        NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'sold', 'withdrawn')),
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS listings_one_active_per_item ON listings (user_id, client_item_id) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS listings_feed_idx ON listings (created_at DESC) WHERE status = 'active';
+
+CREATE TABLE IF NOT EXISTS listing_inquiries (
+    id         BIGSERIAL PRIMARY KEY,
+    listing_id UUID        NOT NULL REFERENCES listings (id) ON DELETE CASCADE,
+    buyer_id   UUID        NOT NULL,
+    message    TEXT        NOT NULL CHECK (length(message) BETWEEN 1 AND 500),
+    contact    TEXT        NOT NULL CHECK (length(contact) BETWEEN 3 AND 120),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS listing_inquiries_listing_idx ON listing_inquiries (listing_id, created_at DESC);

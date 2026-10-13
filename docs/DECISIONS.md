@@ -207,3 +207,29 @@ deliberately left out.
 - **Not tested against the live Claude API here** (no key on this machine); the Claude path
   compiles against SDK v1.80.0 and the SSE path was tested end-to-end with the built-in
   stylist. Set `ANTHROPIC_API_KEY` in `.env` to switch it on.
+
+## 6. Remaining work (paused at the usage limit, 2026-10-13)
+
+Done and committed: sections 1–5b above. The M7 database schema (entitlements, usage
+counters, webhook idempotency, affiliate products/clicks, listings, inquiries) is committed
+and applied, but nothing uses it yet. Still to build:
+
+- **Paywall**: RevenueCat (`react-native-purchases`, keys from `EXPO_PUBLIC_REVENUECAT_*`)
+  for the purchase flow; webhook `POST /api/webhooks/revenuecat` (shared secret) writes
+  `entitlements`; a Postgres `Quota` (free tier: 10 stylist chats/day) plugs into
+  `wardrobe.NewStylist(..., quota)`; free/premium comparison screen.
+- **Premium perks**: try-on limit (3/day free, counted on the device); automated packing list
+  (capsule pick + day-by-day plan); cost-per-wear analytics screen (`style/costPerWear.ts`'s
+  `costReport` is already written and tested).
+- **Affiliate "Complete the look"**: gap detection per outfit, then partner search links
+  (Myntra, Ajio, Amazon.in, Zara) with affiliate tags from config. Links go through an
+  HMAC-signed `/go/{token}` redirect that logs the click. Cards carry a sponsored disclosure
+  (ASCI guidelines).
+- **Resale**: "List for sale" from the garment page (title, description and price prefilled
+  from tags), listings feed, buyer inquiries, mark sold, public share page `/l/{id}`. No
+  payments or escrow.
+- **Web target**: react-native-web, `onnxruntime-web` for `ort.web.ts`, a canvas
+  `pixels.web.ts`, image storage, and COOP/COEP headers for SQLite wasm. The
+  `.web.ts` capability probe and key-value store already exist.
+- **Docs**: README/INSTALL updates for the new env vars (`ANTHROPIC_API_KEY`, `VISION_*`,
+  `AUTH_REQUIRED`, `EXPO_PUBLIC_LEGAL_*`/`GRIEVANCE_*`).
