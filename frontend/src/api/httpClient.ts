@@ -15,6 +15,7 @@ export class ApiError extends Error {
 
 export interface HttpClient {
   postJson<T>(path: string, body: unknown): Promise<T>;
+  delete(path: string): Promise<void>;
 }
 
 /** fetch-based JSON transport with a timeout. Knows nothing about the API's endpoints. */
@@ -24,14 +25,22 @@ export class FetchHttpClient implements HttpClient {
     private readonly timeoutMs = 20_000,
   ) {}
 
-  async postJson<T>(path: string, body: unknown): Promise<T> {
+  postJson<T>(path: string, body: unknown): Promise<T> {
+    return this.send<T>('POST', path, body);
+  }
+
+  async delete(path: string): Promise<void> {
+    await this.send('DELETE', path);
+  }
+
+  private async send<T>(method: string, path: string, body?: unknown): Promise<T> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
       const res = await fetch(`${this.baseUrl}${path}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        method,
+        headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+        body: body === undefined ? undefined : JSON.stringify(body),
         signal: controller.signal,
       });
       const json = await res.json().catch(() => ({}));

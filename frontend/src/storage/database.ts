@@ -23,6 +23,29 @@ const MIGRATIONS: ((db: SQLiteDatabase) => Promise<void>)[] = [
     `),
   // 2: cloud sync bookkeeping
   (db) => db.execAsync('ALTER TABLE garments ADD COLUMN synced_at INTEGER'),
+  // 3: categories, favourites, wear tracking, outfits, and delete tombstones for sync
+  (db) =>
+    db.execAsync(`
+      ALTER TABLE garments ADD COLUMN category TEXT;
+      ALTER TABLE garments ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE garments ADD COLUMN wear_count INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE garments ADD COLUMN last_worn_at INTEGER;
+      CREATE TABLE IF NOT EXISTS outfits (
+        id TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        item_ids_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        last_worn_at INTEGER,
+        synced_at INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS outfits_created ON outfits (created_at DESC);
+      -- Server-side deletes still owed. Only rows the server has seen get a tombstone.
+      CREATE TABLE IF NOT EXISTS deletions (
+        kind TEXT NOT NULL CHECK (kind IN ('garment', 'outfit')),
+        id TEXT NOT NULL,
+        PRIMARY KEY (kind, id)
+      );
+    `),
 ];
 
 /** Passed to <SQLiteProvider onInit>. */

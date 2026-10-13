@@ -16,7 +16,7 @@ import { useIngestion } from './useIngestion';
 
 /** Container: wires a mode strategy and the pipeline to the state machine and picks a view. */
 export function IngestionScreen({ mode: modeKey }: { mode: ModeKey }) {
-  const { pipeline, models } = useServices();
+  const { pipeline, models, closet, sync } = useServices();
   const statuses = useModelStatuses(models.status);
   const mode = useIngestionMode(modeKey);
   const { state, capture, processAnyway, reset } = useIngestion(mode, pipeline);
@@ -52,6 +52,17 @@ export function IngestionScreen({ mode: modeKey }: { mode: ModeKey }) {
           result={state.result}
           outcome={state.outcome}
           onAgain={reset}
+          onCategory={
+            state.outcome.garmentId
+              ? (category) => {
+                  const id = state.outcome.garmentId!;
+                  closet
+                    .update(id, { category })
+                    .then(() => sync.syncAll())
+                    .catch(() => {});
+                }
+              : undefined
+          }
           onViewCloset={() => {
             reset();
             router.navigate('/');

@@ -6,11 +6,13 @@ export interface SimilarItem {
   key: string;
   imageUri: string;
   /** Cosine similarity, 0..1. */
-  score: number;
+  score?: number;
+  /** Replaces the "% match" caption. */
+  caption?: string;
   onPress: () => void;
 }
 
-/** Thumbnail grid with a match percentage under each garment. */
+/** Thumbnail grid with a caption (by default the match percentage) under each garment. */
 export function SimilarGrid({ items }: { items: SimilarItem[] }) {
   return (
     <View style={styles.row}>
@@ -19,7 +21,7 @@ export function SimilarGrid({ items }: { items: SimilarItem[] }) {
           <View style={[ui.checker, styles.thumb]}>
             <Image source={{ uri: item.imageUri }} style={styles.fill} resizeMode="contain" />
           </View>
-          <Text style={ui.muted}>{(item.score * 100).toFixed(0)}% match</Text>
+          <Text style={ui.muted}>{item.caption ?? `${((item.score ?? 0) * 100).toFixed(0)}% match`}</Text>
         </Pressable>
       ))}
     </View>

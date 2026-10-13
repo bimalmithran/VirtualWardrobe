@@ -9,7 +9,9 @@ import type { ModelMemory } from '../ml/modelRunner';
 import { ModelStatusStore } from '../ml/modelStatus';
 import { SessionPool } from '../ml/sessionPool';
 import { SqliteClosetRepository, type ClosetRepository } from '../storage/closetRepository';
+import { SqliteDeletionQueue } from '../storage/deletionQueue';
 import { FileGarmentImageStore } from '../storage/garmentImages';
+import { SqliteOutfitRepository, type OutfitRepository } from '../storage/outfitRepository';
 import { SecureStoreProfileRepository, type ProfileRepository } from '../storage/profileRepository';
 import { CloudSyncService, DisabledCloudSync, type CloudSync } from '../sync/cloudSync';
 import { SaliencyBackgroundRemover } from '../vision/backgroundRemoval';
@@ -21,6 +23,7 @@ import { GarmentPipeline } from '../vision/pipeline';
 /** Everything screens may use, typed by interface rather than implementation. */
 export interface AppServices {
   closet: ClosetRepository;
+  outfits: OutfitRepository;
   profiles: ProfileRepository;
   sync: CloudSync;
   /** Null when no backend is configured. */
@@ -66,12 +69,21 @@ function mlServices(): MlServices {
 export function createAppServices(db: SQLiteDatabase, apiUrl = configuredApiUrl()): AppServices {
   const images = new FileGarmentImageStore();
   const closet = new SqliteClosetRepository(db, images);
+  const outfits = new SqliteOutfitRepository(db);
   const profiles = new SecureStoreProfileRepository();
   const api = apiUrl ? new WardrobeApi(new FetchHttpClient(apiUrl), new SecureStoreInstallationId()) : null;
 
   const sync: CloudSync = api
-    ? new CloudSyncService({ remote: api, pending: closet, images, profiles, profileSync: profiles })
+    ? new CloudSyncService({
+        remote: api,
+        pending: closet,
+        outfits,
+        deletions: new SqliteDeletionQueue(db),
+        images,
+        profiles,
+        profileSync: profiles,
+      })
     : new DisabledCloudSync();
 
-  return { closet, profiles, sync, similarity: api, ...mlServices() };
+  return { closet, outfits, profiles, sync, similarity: api, ...mlServices() };
 }

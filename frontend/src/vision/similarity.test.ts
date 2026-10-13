@@ -13,6 +13,10 @@ const g = (id: string, embedding: Float32Array | null): Garment => ({
   palette: [],
   embedding,
   createdAt: 0,
+  category: null,
+  favorite: false,
+  wearCount: 0,
+  lastWornAt: null,
   syncedAt: null,
 });
 

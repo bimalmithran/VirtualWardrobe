@@ -1,9 +1,10 @@
 import type { DigitalTwin } from '../domain/types';
-import type { HttpClient } from './httpClient';
+import { ApiError, type HttpClient } from './httpClient';
 import type { InstallationIdProvider } from './installationId';
 
 export interface UploadableGarment {
   clientItemId: string;
+  categorySlug: string | null;
   pngBase64: string;
   colorHex: string;
   embedding: Float32Array;
@@ -24,8 +25,24 @@ export interface ProfileRemote {
   saveProfile(profile: DigitalTwin): Promise<void>;
 }
 
+export interface UploadableOutfit {
+  clientOutfitId: string;
+  name: string;
+  itemClientIds: string[];
+  metadata: Record<string, unknown>;
+}
+
 export interface GarmentRemote {
   uploadGarment(garment: UploadableGarment): Promise<void>;
+  /** Resolves when the garment is gone, including when the server never had it. */
+  deleteGarment(clientItemId: string): Promise<void>;
+}
+
+export interface OutfitRemote {
+  /** Rejects with a 409 ApiError while any of its garments is not uploaded yet. */
+  uploadOutfit(outfit: UploadableOutfit): Promise<void>;
+  /** Resolves when the outfit is gone, including when the server never had it. */
+  deleteOutfit(clientOutfitId: string): Promise<void>;
 }
 
 export interface SimilarityRemote {
@@ -34,7 +51,7 @@ export interface SimilarityRemote {
 }
 
 /** Maps app types to the Go API's JSON contract. */
-export class WardrobeApi implements ProfileRemote, GarmentRemote, SimilarityRemote {
+export class WardrobeApi implements ProfileRemote, GarmentRemote, OutfitRemote, SimilarityRemote {
   constructor(
     private readonly http: HttpClient,
     private readonly installation: InstallationIdProvider,
@@ -53,11 +70,40 @@ export class WardrobeApi implements ProfileRemote, GarmentRemote, SimilarityRemo
     await this.http.postJson('/api/wardrobe/items', {
       user_id: await this.installation.get(),
       client_item_id: g.clientItemId,
+      category_slug: g.categorySlug ?? '',
       image_base64: g.pngBase64,
       color_hex: g.colorHex,
       embedding: Array.from(g.embedding),
       metadata: g.metadata,
     });
+  }
+
+  async deleteGarment(clientItemId: string) {
+    await this.deleteIdempotent(`/api/wardrobe/items/${encodeURIComponent(clientItemId)}`);
+  }
+
+  async uploadOutfit(o: UploadableOutfit) {
+    await this.http.postJson('/api/outfits', {
+      user_id: await this.installation.get(),
+      client_outfit_id: o.clientOutfitId,
+      name: o.name,
+      item_client_ids: o.itemClientIds,
+      metadata: o.metadata,
+    });
+  }
+
+  async deleteOutfit(clientOutfitId: string) {
+    await this.deleteIdempotent(`/api/outfits/${encodeURIComponent(clientOutfitId)}`);
+  }
+
+  /** A 404 means it's already gone, which is the outcome the caller wanted. */
+  private async deleteIdempotent(path: string) {
+    const userId = encodeURIComponent(await this.installation.get());
+    try {
+      await this.http.delete(`${path}?user_id=${userId}`);
+    } catch (e) {
+      if (!(e instanceof ApiError && e.status === 404)) throw e;
+    }
   }
 
   async searchSimilar(embedding: Float32Array, limit = 5) {

@@ -1,36 +1,42 @@
-import { useEffect, useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { Button } from '../../components/Button';
+import { Chips } from '../../components/Chips';
 import { MatchScoreCard } from '../../components/MatchScoreCard';
 import { SimilarGrid } from '../../components/SimilarGrid';
-import type { Garment } from '../../domain/types';
+import { CATEGORIES, CATEGORY_LABELS, type Category, type Garment } from '../../domain/types';
 import { CloudSearchPanel } from '../../features/closet/CloudSearchPanel';
 import { useProfile } from '../../features/profile/ProfileContext';
+import { relativeDay } from '../../lib/dates';
 import { useServices } from '../../services/ServicesProvider';
-import { ui } from '../../theme';
+import { colors, ui } from '../../theme';
 import { rankBySimilarity, type RankedGarment } from '../../vision/similarity';
 import { scoreUndertoneMatch } from '../../vision/undertoneMatch';
 
 const SIMILAR_COUNT = 6;
+const CATEGORY_OPTIONS = CATEGORIES.map((c) => ({ key: c, label: CATEGORY_LABELS[c] }));
 
 const openGarment = (id: string) => router.replace({ pathname: '/garment/[id]', params: { id } });
 
 export default function GarmentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { closet, similarity } = useServices();
+  const { closet, similarity, sync } = useServices();
   const { profile } = useProfile();
   const [garment, setGarment] = useState<Garment | null | undefined>(undefined);
   const [similar, setSimilar] = useState<RankedGarment[]>([]);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     closet.list().then((all) => {
       const current = all.find((g) => g.id === id) ?? null;
       setGarment(current);
       setSimilar(current ? rankBySimilarity(current, all, SIMILAR_COUNT) : []);
     });
   }, [closet, id]);
+
+  useEffect(load, [load]);
 
   if (garment === undefined) return <View style={ui.screen} />;
   if (garment === null) {
@@ -41,11 +47,62 @@ export default function GarmentDetail() {
     );
   }
 
+  const setCategory = async (category: Category) => {
+    await closet.update(garment.id, { category: category === garment.category ? null : category });
+    load();
+    sync.syncAll().catch(() => {});
+  };
+
+  const toggleFavorite = async () => {
+    await closet.update(garment.id, { favorite: !garment.favorite });
+    load();
+  };
+
+  const woreToday = async () => {
+    await closet.markWorn([garment.id]);
+    load();
+  };
+
+  const remove = () =>
+    Alert.alert('Remove garment?', 'This deletes it from this phone, from any outfits, and from the server.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          await closet.remove(garment);
+          sync.syncAll().catch(() => {});
+          router.back();
+        },
+      },
+    ]);
+
   return (
     <ScrollView style={ui.screen} contentContainerStyle={styles.content}>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Pressable onPress={toggleFavorite} hitSlop={12} accessibilityLabel={garment.favorite ? 'Remove from favourites' : 'Add to favourites'}>
+              <Ionicons name={garment.favorite ? 'heart' : 'heart-outline'} size={24} color={garment.favorite ? colors.danger : colors.text} />
+            </Pressable>
+          ),
+        }}
+      />
       <View style={[ui.checker, styles.hero]}>
         <Image source={{ uri: garment.imageUri }} style={styles.fill} resizeMode="contain" />
       </View>
+
+      <Text style={[ui.h2, styles.label]}>Category</Text>
+      <Chips options={CATEGORY_OPTIONS} selected={garment.category} onSelect={setCategory} />
+
+      <View style={[ui.card, styles.wear]}>
+        <View style={{ flex: 1 }}>
+          <Text style={ui.h2}>{wearLabel(garment)}</Text>
+          <Text style={ui.muted}>{garment.lastWornAt ? `Last worn ${relativeDay(garment.lastWornAt)}` : 'Not worn yet'}</Text>
+        </View>
+        <Button title="Wore it today" variant="secondary" onPress={woreToday} />
+      </View>
+
       {profile && <MatchScoreCard hex={garment.colorHex} match={scoreUndertoneMatch(garment.colorHex, profile.undertone)} />}
 
       <Text style={[ui.h2, styles.section]}>Visually similar in your closet</Text>
@@ -61,22 +118,20 @@ export default function GarmentDetail() {
         <CloudSearchPanel garment={{ ...garment, embedding: garment.embedding }} remote={similarity} onOpen={openGarment} />
       )}
 
-      <Button
-        title="Remove from closet"
-        variant="secondary"
-        style={styles.section}
-        onPress={async () => {
-          await closet.remove(garment);
-          router.back();
-        }}
-      />
+      <Button title="Remove from closet" variant="secondary" style={styles.section} onPress={remove} />
     </ScrollView>
   );
+}
+
+function wearLabel(g: Garment) {
+  return g.wearCount === 0 ? 'Never worn' : g.wearCount === 1 ? 'Worn once' : `Worn ${g.wearCount} times`;
 }
 
 const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 40 },
   hero: { aspectRatio: 1, borderRadius: 16, overflow: 'hidden', marginBottom: 12 },
   fill: { width: '100%', height: '100%' },
+  label: { marginBottom: 4 },
+  wear: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 12 },
   section: { marginTop: 20, marginBottom: 8 },
 });

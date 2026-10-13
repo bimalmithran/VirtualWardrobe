@@ -31,6 +31,7 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Closet', tabBarIcon: icon('grid-outline') }} />
+      <Tabs.Screen name="outfits" options={{ title: 'Outfits', tabBarIcon: icon('shirt-outline') }} />
       <Tabs.Screen name="add" options={{ title: 'Add', headerShown: false, tabBarIcon: icon('add-circle-outline') }} />
       <Tabs.Screen name="shop" options={{ title: 'Live Shop', headerShown: false, tabBarIcon: icon('scan-outline') }} />
       <Tabs.Screen name="profile" options={{ title: 'Twin', tabBarIcon: icon('person-outline') }} />
