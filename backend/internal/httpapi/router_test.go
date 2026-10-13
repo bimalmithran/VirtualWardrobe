@@ -26,7 +26,22 @@ type stubs struct {
 	llmErr     error
 	llmResp    llmgateway.Response
 	gotItem    wardrobe.AddItemInput
+	deleteErr  error
+	outfitErr  error
+	gotDelete  [2]string
 }
+
+func (s *stubs) DeleteItem(_ context.Context, user, item string) error {
+	s.gotDelete = [2]string{user, item}
+	return s.deleteErr
+}
+func (s *stubs) SaveOutfit(_ context.Context, in wardrobe.SaveOutfitInput) (domain.Outfit, bool, error) {
+	return domain.Outfit{ClientOutfitID: domain.ClientOutfitID(in.ClientOutfitID)}, s.created, s.outfitErr
+}
+func (s *stubs) ListOutfits(context.Context, string) ([]domain.Outfit, error) {
+	return nil, s.outfitErr
+}
+func (s *stubs) DeleteOutfit(context.Context, string, string) error { return s.outfitErr }
 
 func (s *stubs) Ping(context.Context) error { return nil }
 func (s *stubs) SaveProfile(_ context.Context, p domain.Profile) (domain.Profile, error) {
@@ -46,14 +61,18 @@ func (s *stubs) Stats() []llmgateway.ModelStats { return nil }
 
 func router(s *stubs, publicBase string) http.Handler {
 	return NewRouter(Deps{
-		Health: s, Profiles: s, Items: s, Search: s, LLM: s, LLMStats: s,
+		Health: s, Profiles: s, Items: s, Deleter: s, Search: s, Outfits: s, LLM: s, LLMStats: s,
 		PublicBaseURL: publicBase, Log: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
 }
 
 func do(h http.Handler, path, body string) *httptest.ResponseRecorder {
+	return doMethod(h, http.MethodPost, path, body)
+}
+
+func doMethod(h http.Handler, method, path, body string) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	req.Host = "192.168.1.20:8080"
 	h.ServeHTTP(rec, req)
 	return rec
@@ -119,5 +138,37 @@ func TestMetadataPassedThroughRaw(t *testing.T) {
 	do(router(s, ""), "/api/wardrobe/items", `{"metadata":{"palette":[{"hex":"#FFFFFF"}]}}`)
 	if string(s.gotItem.Metadata) != `{"palette":[{"hex":"#FFFFFF"}]}` {
 		t.Fatalf("metadata = %s", s.gotItem.Metadata)
+	}
+}
+
+func TestDeleteAndOutfitRoutes(t *testing.T) {
+	cases := []struct {
+		name, method, path, body string
+		s                        *stubs
+		want                     int
+	}{
+		{"delete item", http.MethodDelete, "/api/wardrobe/items/abc?user_id=u", "", &stubs{}, 204},
+		{"delete missing", http.MethodDelete, "/api/wardrobe/items/abc?user_id=u", "", &stubs{deleteErr: domain.ErrNotFound}, 404},
+		{"outfit created", http.MethodPost, "/api/outfits", `{"client_outfit_id":"o","item_client_ids":["a"]}`, &stubs{created: true}, 201},
+		{"outfit updated", http.MethodPost, "/api/outfits", `{}`, &stubs{}, 200},
+		{"outfit items pending", http.MethodPost, "/api/outfits", `{}`, &stubs{outfitErr: domain.ErrUnknownItems}, 409},
+		{"outfit list", http.MethodGet, "/api/outfits?user_id=u", "", &stubs{}, 200},
+		{"outfit delete", http.MethodDelete, "/api/outfits/o?user_id=u", "", &stubs{}, 204},
+		{"outfit delete missing", http.MethodDelete, "/api/outfits/o?user_id=u", "", &stubs{outfitErr: domain.ErrNotFound}, 404},
+	}
+	for _, c := range cases {
+		if rec := doMethod(router(c.s, ""), c.method, c.path, c.body); rec.Code != c.want {
+			t.Errorf("%s: got %d (%s), want %d", c.name, rec.Code, rec.Body, c.want)
+		}
+	}
+
+	s := &stubs{}
+	doMethod(router(s, ""), http.MethodDelete, "/api/wardrobe/items/xyz?user_id=abc", "")
+	if s.gotDelete != [2]string{"abc", "xyz"} {
+		t.Fatalf("path/query not passed through: %v", s.gotDelete)
+	}
+	rec := doMethod(router(&stubs{}, ""), http.MethodGet, "/api/outfits?user_id=u", "")
+	if !strings.Contains(rec.Body.String(), `"outfits":[]`) {
+		t.Fatalf("empty list should encode as []: %s", rec.Body)
 	}
 }

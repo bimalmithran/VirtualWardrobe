@@ -51,8 +51,10 @@ func (e errorWriter) write(w http.ResponseWriter, err error) {
 	switch {
 	case domain.IsValidation(err), errors.Is(err, domain.ErrUnknownCategory):
 		writeError(w, http.StatusBadRequest, err.Error())
-	case errors.Is(err, domain.ErrUserNotFound):
+	case errors.Is(err, domain.ErrUserNotFound), errors.Is(err, domain.ErrNotFound):
 		writeError(w, http.StatusNotFound, err.Error())
+	case errors.Is(err, domain.ErrUnknownItems):
+		writeError(w, http.StatusConflict, err.Error())
 	case errors.Is(err, llmgateway.ErrNoEligibleModel):
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
 	default:

@@ -4,6 +4,7 @@ package imagestore
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"os"
 	"path"
@@ -53,6 +54,18 @@ func (s *LocalFS) SavePNG(_ context.Context, user domain.UserID, item domain.Cli
 		return "", err
 	}
 	return path.Join(s.urlPrefix, string(user), name), nil
+}
+
+// RemovePNG deletes <dir>/<user>/<item>.png. A file that is already gone is fine.
+func (s *LocalFS) RemovePNG(_ context.Context, user domain.UserID, item domain.ClientItemID) error {
+	if !user.Valid() || !item.Valid() {
+		return &domain.ValidationError{Field: "image", Reason: "has an invalid storage key"}
+	}
+	err := os.Remove(filepath.Join(s.dir, string(user), string(item)+".png"))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return err
 }
 
 // Handler serves stored images under urlPrefix, without directory listings.

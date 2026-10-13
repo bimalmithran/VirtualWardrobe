@@ -98,6 +98,29 @@ func (s *Closet) SearchSimilar(ctx context.Context, q SearchQuery) ([]domain.Mat
 	return s.items.SearchSimilar(ctx, q)
 }
 
+// DeleteItem removes a garment and its stored cutout. Deleting twice reports ErrNotFound,
+// which clients retrying a delete can treat as success.
+func (s *Closet) DeleteItem(ctx context.Context, userID string, clientItemID string) error {
+	user, item := domain.NormalizeUserID(userID), domain.ClientItemID(clientItemID)
+	if !user.Valid() {
+		return &domain.ValidationError{Field: "user_id", Reason: "must be a UUID"}
+	}
+	if !item.Valid() {
+		return &domain.ValidationError{Field: "client_item_id", Reason: "must be 1-64 characters of [A-Za-z0-9_-]"}
+	}
+	url, err := s.items.DeleteItem(ctx, user, item)
+	if err != nil {
+		return err
+	}
+	// Only cutouts this server stored are ours to delete; image_url uploads point elsewhere.
+	if !domain.IsAbsoluteURL(url) {
+		if err := s.images.RemovePNG(ctx, user, item); err != nil {
+			return fmt.Errorf("remove image: %w", err)
+		}
+	}
+	return nil
+}
+
 // DecodePNG accepts plain base64 or a data: URL and checks the PNG signature.
 func DecodePNG(b64 string) ([]byte, error) {
 	if i := strings.Index(b64, ";base64,"); strings.HasPrefix(b64, "data:") && i > 0 {

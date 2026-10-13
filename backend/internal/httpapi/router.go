@@ -27,6 +27,16 @@ type ItemAdder interface {
 	AddItem(ctx context.Context, in wardrobe.AddItemInput) (domain.Item, bool, error)
 }
 
+type ItemDeleter interface {
+	DeleteItem(ctx context.Context, userID, clientItemID string) error
+}
+
+type OutfitStore interface {
+	SaveOutfit(ctx context.Context, in wardrobe.SaveOutfitInput) (domain.Outfit, bool, error)
+	ListOutfits(ctx context.Context, userID string) ([]domain.Outfit, error)
+	DeleteOutfit(ctx context.Context, userID, clientOutfitID string) error
+}
+
 type SimilarSearcher interface {
 	SearchSimilar(ctx context.Context, q wardrobe.SearchQuery) ([]domain.Match, error)
 }
@@ -43,7 +53,9 @@ type Deps struct {
 	Health   HealthChecker
 	Profiles ProfileSaver
 	Items    ItemAdder
+	Deleter  ItemDeleter
 	Search   SimilarSearcher
+	Outfits  OutfitStore
 	LLM      Completer
 	LLMStats ModelStatsReporter
 	// Serves stored images; mounted at ImagesPrefix.
@@ -58,14 +70,19 @@ type Deps struct {
 func NewRouter(d Deps) http.Handler {
 	urls := urlResolver{publicBase: d.PublicBaseURL}
 	errs := errorWriter{log: d.Log}
-	wardrobeH := &wardrobeHandler{items: d.Items, search: d.Search, urls: urls, errs: errs}
+	wardrobeH := &wardrobeHandler{items: d.Items, deleter: d.Deleter, search: d.Search, urls: urls, errs: errs}
+	outfitH := &outfitHandler{outfits: d.Outfits, errs: errs}
 	llmH := &llmHandler{llm: d.LLM, stats: d.LLMStats, errs: errs}
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /healthz", healthHandler{d.Health})
 	mux.Handle("POST /api/users/profile", &profileHandler{profiles: d.Profiles, errs: errs})
 	mux.HandleFunc("POST /api/wardrobe/items", wardrobeH.create)
+	mux.HandleFunc("DELETE /api/wardrobe/items/{client_item_id}", wardrobeH.delete)
 	mux.HandleFunc("POST /api/wardrobe/search", wardrobeH.searchSimilar)
+	mux.HandleFunc("POST /api/outfits", outfitH.save)
+	mux.HandleFunc("GET /api/outfits", outfitH.list)
+	mux.HandleFunc("DELETE /api/outfits/{client_outfit_id}", outfitH.delete)
 	mux.HandleFunc("POST /api/llm/complete", llmH.complete)
 	mux.HandleFunc("GET /api/llm/models", llmH.models)
 	if d.Images != nil {

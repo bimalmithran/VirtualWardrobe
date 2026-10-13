@@ -12,6 +12,10 @@ var (
 	ErrUserNotFound = errors.New("user not found; POST /api/users/profile first")
 	// ErrUnknownCategory means a category slug does not exist.
 	ErrUnknownCategory = errors.New("unknown category_slug")
+	// ErrUnknownItems means an outfit references garments the server has not received yet.
+	ErrUnknownItems = errors.New("outfit references garments that have not been uploaded")
+	// ErrNotFound means the addressed resource does not exist for this user.
+	ErrNotFound = errors.New("not found")
 )
 
 // ValidationError reports a rejected input field. Transport layers map it to a 4xx.

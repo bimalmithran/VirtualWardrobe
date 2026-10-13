@@ -95,3 +95,7 @@ CREATE TABLE IF NOT EXISTS outfit_items (
     PRIMARY KEY (outfit_id, item_id)
 );
 CREATE INDEX IF NOT EXISTS outfit_items_item_idx ON outfit_items (item_id);
+
+-- Outfits built on the phone carry the phone's id, so uploads are idempotent like garments.
+ALTER TABLE outfits ADD COLUMN IF NOT EXISTS client_outfit_id TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS outfits_user_client_idx ON outfits (user_id, client_outfit_id);

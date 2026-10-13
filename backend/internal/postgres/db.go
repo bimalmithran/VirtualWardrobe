@@ -62,7 +62,7 @@ func mapErr(err error) error {
 	}
 	switch pgErr.Code {
 	case "23503": // foreign_key_violation
-		if pgErr.ConstraintName == "wardrobe_items_user_id_fkey" {
+		if pgErr.ConstraintName == "wardrobe_items_user_id_fkey" || pgErr.ConstraintName == "outfits_user_id_fkey" {
 			return domain.ErrUserNotFound
 		}
 	case "23514", "22P02": // check_violation, invalid_text_representation

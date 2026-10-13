@@ -9,8 +9,16 @@ import (
 )
 
 type fakeItems struct {
-	saved []domain.NewItem
-	query SearchQuery
+	saved     []domain.NewItem
+	query     SearchQuery
+	deleted   []domain.ClientItemID
+	deleteURL string
+	deleteErr error
+}
+
+func (f *fakeItems) DeleteItem(_ context.Context, _ domain.UserID, item domain.ClientItemID) (string, error) {
+	f.deleted = append(f.deleted, item)
+	return f.deleteURL, f.deleteErr
 }
 
 func (f *fakeItems) UpsertItem(_ context.Context, in domain.NewItem) (domain.Item, bool, error) {
@@ -23,7 +31,12 @@ func (f *fakeItems) SearchSimilar(_ context.Context, q SearchQuery) ([]domain.Ma
 	return nil, nil
 }
 
-type fakeImages struct{ saved int }
+type fakeImages struct{ saved, removed int }
+
+func (f *fakeImages) RemovePNG(context.Context, domain.UserID, domain.ClientItemID) error {
+	f.removed++
+	return nil
+}
 
 func (f *fakeImages) SavePNG(_ context.Context, u domain.UserID, i domain.ClientItemID, _ []byte) (string, error) {
 	f.saved++
@@ -121,5 +134,32 @@ func TestSaveProfileNormalisesAndValidates(t *testing.T) {
 	}
 	if _, err := svc.SaveProfile(context.Background(), domain.Profile{UserID: uid, HeightCm: 20}); !domain.IsValidation(err) {
 		t.Fatalf("err = %v, want ValidationError", err)
+	}
+}
+
+func TestDeleteItemRemovesOwnImagesOnly(t *testing.T) {
+	ctx := context.Background()
+	items, images := &fakeItems{deleteURL: "/uploads/u/abc.png"}, &fakeImages{}
+	if err := NewCloset(items, images).DeleteItem(ctx, uid, "abc"); err != nil {
+		t.Fatal(err)
+	}
+	if images.removed != 1 || len(items.deleted) != 1 {
+		t.Fatalf("removed=%d deleted=%v", images.removed, items.deleted)
+	}
+
+	items, images = &fakeItems{deleteURL: "https://cdn.example/abc.png"}, &fakeImages{}
+	if err := NewCloset(items, images).DeleteItem(ctx, uid, "abc"); err != nil || images.removed != 0 {
+		t.Fatalf("external image touched: err=%v removed=%d", err, images.removed)
+	}
+
+	items, images = &fakeItems{deleteErr: domain.ErrNotFound}, &fakeImages{}
+	if err := NewCloset(items, images).DeleteItem(ctx, uid, "abc"); err != domain.ErrNotFound || images.removed != 0 {
+		t.Fatalf("err=%v removed=%d", err, images.removed)
+	}
+
+	for name, id := range map[string]string{"traversal": "../x", "empty": ""} {
+		if err := NewCloset(&fakeItems{}, &fakeImages{}).DeleteItem(ctx, uid, id); !domain.IsValidation(err) {
+			t.Errorf("%s: err = %v, want ValidationError", name, err)
+		}
 	}
 }

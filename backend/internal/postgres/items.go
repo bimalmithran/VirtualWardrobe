@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
@@ -114,4 +115,16 @@ func (r *Items) SearchSimilar(ctx context.Context, q wardrobe.SearchQuery) ([]do
 		return nil, err
 	}
 	return matches, tx.Commit(ctx)
+}
+
+func (r *Items) DeleteItem(ctx context.Context, user domain.UserID, item domain.ClientItemID) (string, error) {
+	var url string
+	err := r.pool.QueryRow(ctx,
+		`DELETE FROM wardrobe_items WHERE user_id = $1 AND client_item_id = $2 RETURNING image_url`,
+		string(user), string(item),
+	).Scan(&url)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", domain.ErrNotFound
+	}
+	return url, mapErr(err)
 }

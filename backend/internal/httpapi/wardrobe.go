@@ -8,10 +8,11 @@ import (
 )
 
 type wardrobeHandler struct {
-	items  ItemAdder
-	search SimilarSearcher
-	urls   urlResolver
-	errs   errorWriter
+	items   ItemAdder
+	deleter ItemDeleter
+	search  SimilarSearcher
+	urls    urlResolver
+	errs    errorWriter
 }
 
 type itemRequest struct {
@@ -80,4 +81,13 @@ func (h *wardrobeHandler) searchSimilar(w http.ResponseWriter, r *http.Request) 
 		matches[i].ImageURL = h.urls.absolute(r, matches[i].ImageURL)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"results": matches})
+}
+
+// delete removes one garment: DELETE /api/wardrobe/items/{client_item_id}?user_id=<uuid>.
+func (h *wardrobeHandler) delete(w http.ResponseWriter, r *http.Request) {
+	if err := h.deleter.DeleteItem(r.Context(), r.URL.Query().Get("user_id"), r.PathValue("client_item_id")); err != nil {
+		h.errs.write(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
