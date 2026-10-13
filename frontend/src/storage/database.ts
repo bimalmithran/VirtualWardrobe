@@ -96,6 +96,8 @@ const MIGRATIONS: ((db: SQLiteDatabase) => Promise<void>)[] = [
       INSERT INTO wear_log (garment_id, worn_at)
         SELECT id, last_worn_at FROM garments WHERE last_worn_at IS NOT NULL;
     `),
+  // 7: cached MoveNet keypoints per photo of the user, for virtual try-on.
+  (db) => db.execAsync('ALTER TABLE self_photos ADD COLUMN pose_json TEXT'),
 ];
 
 /** Passed to <SQLiteProvider onInit>. */

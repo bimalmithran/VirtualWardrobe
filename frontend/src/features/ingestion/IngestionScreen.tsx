@@ -11,6 +11,7 @@ import { ui } from '../../theme';
 import { IngestionResult } from './components/IngestionResult';
 import { screenStyles } from './components/screenStyles';
 import { Centered, ErrorPanel, JunkWarning, StepProgress } from './components/StatusViews';
+import { ShopResult } from '../shop/ShopResult';
 import { useIngestionMode, type ModeKey } from './modes';
 import { useIngestion } from './useIngestion';
 
@@ -59,6 +60,13 @@ export function IngestionScreen({
       return page(<ErrorPanel message={state.message} onRetry={reset} />);
     case 'done': {
       const { outcome } = state;
+      if (modeKey === 'shop') {
+        return (
+          <View style={[ui.screen, { paddingTop: underHeader ? 0 : insets.top }]}>
+            <ShopResult result={state.result} previewUri={outcome.previewUri} onAgain={reset} />
+          </View>
+        );
+      }
       const garment = outcome.garment;
       return page(
         <IngestionResult

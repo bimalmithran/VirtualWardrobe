@@ -3,7 +3,7 @@
  * the Hugging Face Hub; we run them directly through onnxruntime-react-native.
  */
 
-export type ModelKey = 'segmentation' | 'embedding';
+export type ModelKey = 'segmentation' | 'embedding' | 'pose';
 
 export interface ModelSpec {
   key: ModelKey;
@@ -59,10 +59,28 @@ const MOBILECLIP_S0: ModelSpec = {
   license: 'Apple ML research license',
 };
 
+// MoveNet SinglePose Lightning (Google, Apache-2.0), the fp32 ONNX export. Takes raw 0..255
+// pixels as int32 NHWC [1,192,192,3]; returns [1,1,17,3] of (y, x, score), normalised.
+const MOVENET_LIGHTNING: ModelSpec = {
+  key: 'pose',
+  label: 'Pose estimation (MoveNet Lightning)',
+  url: 'https://huggingface.co/Xenova/movenet-singlepose-lightning/resolve/main/onnx/model.onnx',
+  fileName: 'movenet-singlepose-lightning.onnx',
+  bytes: 9413268,
+  inputSize: 192,
+  mean: [0, 0, 0],
+  std: [1, 1, 1],
+  license: 'Apache-2.0',
+};
+
 export const MODELS: Record<ModelKey, ModelSpec> = {
   segmentation: RMBG_1_4,
   embedding: MOBILECLIP_S0,
+  pose: MOVENET_LIGHTNING,
 };
+
+/** Models every capture needs; pose is fetched only when the user first tries something on. */
+export const CORE_MODELS: ModelKey[] = ['segmentation', 'embedding'];
 
 export const EMBEDDING_DIM = 512;
 

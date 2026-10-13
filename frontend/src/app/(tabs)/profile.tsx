@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { Button } from '../../components/Button';
 import { DigitalTwinForm } from '../../components/DigitalTwinForm';
 import { ModelSetup } from '../../components/ModelSetup';
-import { MODELS, type ModelKey } from '../../config/models';
+import { CORE_MODELS, MODELS, type ModelKey } from '../../config/models';
 import { useProfile } from '../../features/profile/ProfileContext';
 import { useSelf } from '../../features/self/SelfContext';
 import { useConsent } from '../../features/privacy/ConsentContext';
@@ -15,7 +15,7 @@ import { useModelStatuses } from '../../ml/modelStatus';
 import { useServices } from '../../services/ServicesProvider';
 import { ui } from '../../theme';
 
-const KEYS = Object.keys(MODELS) as ModelKey[];
+const KEYS: ModelKey[] = CORE_MODELS;
 
 export default function ProfileTab() {
   const { profile, save } = useProfile();

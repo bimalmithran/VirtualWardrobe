@@ -34,6 +34,7 @@ export default function RootLayout() {
                 <Stack.Screen name="outfit/new" options={{ title: 'Build an outfit' }} />
                 <Stack.Screen name="outfit/[id]" options={{ title: 'Outfit' }} />
                 <Stack.Screen name="privacy" options={{ title: 'Privacy & data' }} />
+                <Stack.Screen name="try-on" options={{ title: 'Try it on' }} />
               </Stack>
               <ConsentSheet />
             </SelfProvider>

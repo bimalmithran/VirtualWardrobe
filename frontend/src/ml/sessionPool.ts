@@ -33,7 +33,8 @@ export class SessionPool implements ModelRunner, ModelMemory {
     return this.exclusive(async () => {
       const ort = getOrt();
       const session = await this.acquire(key);
-      const results = await session.run({ [session.inputNames[0]]: new ort.Tensor('float32', input, dims) });
+      const tensor = input instanceof Int32Array ? new ort.Tensor('int32', input, dims) : new ort.Tensor('float32', input, dims);
+      const results = await session.run({ [session.inputNames[0]]: tensor });
       const out = results[pickOutput ? pickOutput(session.outputNames) : session.outputNames[0]];
       // Copy out so the native-backed output buffers can be released straight away.
       const data = new Float32Array(out.data as Float32Array);

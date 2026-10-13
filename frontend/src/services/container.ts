@@ -29,6 +29,7 @@ import { MobileClipEmbedder, type GarmentEmbedder } from '../vision/embedding';
 import { fuseViews } from '../vision/fusion';
 import { assessQuality } from '../vision/junkFilter';
 import { GarmentPipeline } from '../vision/pipeline';
+import { MoveNetPoseEstimator, type PoseEstimator } from '../vision/pose';
 import { OnDeviceSelfAnalyzer, type SelfAnalyzer } from '../vision/selfAnalyzer';
 
 /** Everything screens may use, typed by interface rather than implementation. */
@@ -50,7 +51,7 @@ export interface AppServices {
   eraser: LocalEraser;
   pipeline: GarmentPipeline;
   /** Photos of the user and the on-device analysis that reads their colouring. */
-  self: { photos: SelfPhotoRepository; analyzer: SelfAnalyzer };
+  self: { photos: SelfPhotoRepository; analyzer: SelfAnalyzer; pose: PoseEstimator };
   models: {
     status: ModelStatusStore;
     files: ModelDownloader;
@@ -61,6 +62,7 @@ export interface AppServices {
 }
 
 interface MlServices {
+  pose: PoseEstimator;
   models: Omit<AppServices['models'], 'router'>;
   router: ExecutionRouter;
   deviceRemover: BackgroundRemover;
@@ -85,6 +87,7 @@ function mlServices(): MlServices {
   });
   const deviceRemover = new SaliencyBackgroundRemover(sessions);
   ml = {
+    pose: new MoveNetPoseEstimator(sessions),
     models: { status, files, memory: sessions },
     router,
     deviceRemover,
@@ -148,7 +151,7 @@ export function createAppServices(db: SQLiteDatabase, apiUrl = configuredApiUrl(
     .catch(() => {});
   consent.subscribe(() => mlServices().router.plan());
 
-  const { selfAnalyzer, router, deviceRemover, deviceEmbedder, models } = mlServices();
+  const { selfAnalyzer, router, deviceRemover, deviceEmbedder, models, pose } = mlServices();
   const deviceUsable = () => router.caps.runtimeAvailable;
   const pipeline = new GarmentPipeline({
     removeBackground: new RoutedBackgroundRemover(() => router.plan(), deviceRemover, api && new CloudBackgroundRemover(api), deviceUsable),
@@ -170,7 +173,7 @@ export function createAppServices(db: SQLiteDatabase, apiUrl = configuredApiUrl(
     similarity: api,
     settings: kv,
     eraser,
-    self: { photos: selfPhotos, analyzer: selfAnalyzer },
+    self: { photos: selfPhotos, analyzer: selfAnalyzer, pose },
     pipeline,
     models: { ...models, router },
   };

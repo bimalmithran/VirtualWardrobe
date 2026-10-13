@@ -113,7 +113,11 @@ export function createAddPhotoMode(deps: { photos: GarmentPhotos; sync: CloudSyn
   };
 }
 
-/** In-store AR simulator: score the shirt against the wearer's colouring, keep nothing. */
+/**
+ * In-store assistant: cut out the garment on the rack, read its colour, pattern, cut and
+ * style vector, and compare it with the wearer and the closet. Nothing is saved unless the
+ * user says they bought it.
+ */
 export function createShopMode(deps: { wearer: Wearer }): IngestionMode {
   let preview: File | null = null;
   const discard = () => {
@@ -121,11 +125,11 @@ export function createShopMode(deps: { wearer: Wearer }): IngestionMode {
     preview = null;
   };
   return {
-    requiredModels: ['segmentation'],
-    embed: false,
-    steps: PROCESS_STEPS,
+    requiredModels: ['segmentation', 'embedding'],
+    embed: true,
+    steps: [...PROCESS_STEPS, { key: 'embedding', label: 'Comparing with your closet' }],
     copy: {
-      captureHint: 'Point at a shirt in the store to check it against your undertone',
+      captureHint: 'Point at a garment on the rack: fill the frame, plain background behind it if you can',
       doneTitle: 'In-store match',
       againLabel: 'Scan another',
     },

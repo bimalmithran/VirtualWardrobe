@@ -10,7 +10,10 @@ export function useExecutionPlan(router: ExecutionRouter): ExecutionPlan {
   return plan;
 }
 
-/** The models a flow needs on the phone under this plan; cloud-routed ones need no download. */
+/**
+ * The models a flow needs on the phone under this plan; cloud-routed ones need no download.
+ * Pose only ever runs on photos of the user, which never leave the phone.
+ */
 export function deviceModels(required: ModelKey[], plan: ExecutionPlan): ModelKey[] {
-  return required.filter((k) => plan[k] === 'device');
+  return required.filter((k) => k === 'pose' || plan[k] === 'device');
 }

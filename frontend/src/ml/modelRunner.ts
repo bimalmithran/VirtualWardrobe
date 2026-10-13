@@ -1,7 +1,8 @@
 import type { ModelKey } from '../config/models';
 
 export interface InferenceRequest {
-  input: Float32Array;
+  /** Float32 for image models; Int32 for MoveNet, which takes raw pixel values. */
+  input: Float32Array | Int32Array;
   dims: number[];
   /** Picks the output tensor to return; defaults to the first output. */
   pickOutput?: (outputNames: readonly string[]) => string;

@@ -123,3 +123,34 @@ deliberately left out.
   warning on the detail screen.
 - **Cost per wear** is shown per garment for free; the wardrobe-wide analytics screen is a
   premium perk (section 5).
+
+## 4. In-store assistant & live scanner
+
+- **Scanning stays point-and-shoot** with the live junk-filter chip, rather than continuous
+  frame processing: a continuous 1024² cutout model would drain the battery and needs
+  frame-processor native code. The scan now also computes the style vector (needed to compare
+  with the closet).
+- **Category is guessed** by k-NN over the closet's MobileCLIP vectors (similarity-weighted
+  vote, abstains below 50% agreement), then shown as editable chips. No text tower or extra
+  classifier download needed.
+- **Personal match = 60% colour, 40% cut.** Colour is the existing undertone/season score.
+  Cut reads a silhouette (fitted, flared, boxy, straight, longline, cropped, wide-leg,
+  tapered) from the mask geometry and scores it per body shape with style-guide rules, plus
+  petite/torso adjustments. Rules live in one table (`style/cutFit.ts`) for easy tuning.
+- **Compatibility index**: 3–5 complete looks from the closet built around the scanned piece
+  by the same generator the Outfits tab uses.
+- **Redundancy**: same category + ΔE < 14 + MobileCLIP cosine ≥ 0.86 (or same subtype and
+  pattern when vectors are missing) → "You already have 3 navy t-shirts like this."
+- **Orphan alert**: the scanned item is checked with the same orphan rules as the closet.
+- **"I bought it"** adds the scan straight to the closet with no re-processing.
+- **Virtual try-on** uses **MoveNet SinglePose Lightning** (Apache-2.0, 9.4 MB fp32 ONNX,
+  `int32` NHWC input — runner gained int32 support), downloaded only on first try-on. It runs
+  on the user's own photos (from Your colours) on the phone only; keypoints are cached per
+  photo. The garment cutout is anchored to shoulders / hips / ankles, scaled by joint span,
+  rotated with the shoulder line, and keeps its own aspect so length and silhouette show.
+  Without a photo, an **avatar is generated from the Digital Twin** (height, shape ratios or
+  measurements, torso length). This is a 2D silhouette/drape preview, not a photoreal
+  diffusion try-on — labelled as such in the UI. Photoreal VTO needs a server GPU model
+  (e.g. IDM-VTON) and is a possible premium upgrade.
+- MoveNet's output order (y, x, score) is from Google's model card; I could not run it on a
+  real photo of a person here, so the first on-device test should confirm placement.

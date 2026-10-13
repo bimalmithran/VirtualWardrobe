@@ -5,7 +5,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { Button } from '../../components/Button';
 import { Chips } from '../../components/Chips';
-import { MatchScoreCard } from '../../components/MatchScoreCard';
 import { PaletteCard } from '../../components/PaletteCard';
 import { PhotoStrip } from '../../components/PhotoStrip';
 import { SimilarGrid } from '../../components/SimilarGrid';
@@ -23,6 +22,9 @@ import { CloudSearchPanel } from '../../features/closet/CloudSearchPanel';
 import { GarmentTags } from '../../features/closet/GarmentTags';
 import { WearHistory } from '../../features/closet/WearHistory';
 import { useConsent } from '../../features/privacy/ConsentContext';
+import { useProfile } from '../../features/profile/ProfileContext';
+import { PersonalMatchCard } from '../../features/shop/PersonalMatchCard';
+import { cutFit } from '../../style/cutFit';
 import { orphanReason, type OrphanReason } from '../../style/compatibility';
 import { openAddPhotos } from '../../features/ingestion/modes';
 import { useWearer } from '../../features/self/SelfContext';
@@ -41,6 +43,7 @@ export default function GarmentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { closet, photos: photoStore, similarity, sync, outfits: outfitRepo } = useServices();
   const { allows } = useConsent();
+  const { profile } = useProfile();
   const [wears, setWears] = useState<WearEvent[]>([]);
   const [outfits, setOutfits] = useState<Outfit[]>([]);
   const [orphan, setOrphan] = useState<OrphanReason | null>(null);
@@ -184,7 +187,15 @@ export default function GarmentDetail() {
       </View>
       <WearHistory garment={garment} wears={wears} outfits={outfits} />
 
-      {fit && <MatchScoreCard hex={garment.colorHex} match={fit} />}
+      <PersonalMatchCard hex={garment.colorHex} colour={fit} cut={cutFit(garment.category, garment.shape, profile)} />
+      {garment.category && garment.category !== 'accessories' && (
+        <Button
+          title="Try it on"
+          variant="secondary"
+          onPress={() => router.push({ pathname: '/try-on', params: { garment: garment.id } })}
+          style={styles.section}
+        />
+      )}
 
       <PaletteCard palette={garment.palette} style={styles.palette} />
 
