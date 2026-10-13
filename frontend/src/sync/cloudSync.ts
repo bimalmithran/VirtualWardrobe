@@ -143,12 +143,21 @@ export class CloudSyncService implements CloudSync {
       const ok = await attempt(async () => {
         await this.deps.remote.uploadGarment({
           clientItemId: g.id,
-          categorySlug: g.category,
+          // The server's category tree has the subcategories too, so send the most specific slug.
+          categorySlug: g.subcategory ?? g.category,
           imageBase64: await this.deps.images.readUploadBase64(g.imageUri),
           colorHex: g.colorHex,
           embedding: g.embedding!, // listUnsynced only returns rows with an embedding
           metadata: {
             palette: g.palette,
+            secondary_hex: g.palette[1]?.hex ?? null,
+            pattern: g.pattern,
+            shape: g.shape,
+            subcategory: g.subcategory,
+            occasions: g.occasions,
+            weather: g.weather,
+            brand: g.brand,
+            size: g.size,
             photo_count: g.photoCount,
             captured_at: new Date(g.createdAt).toISOString(),
             models: { segmentation: MODELS.segmentation.fileName, embedding: MODELS.embedding.fileName },

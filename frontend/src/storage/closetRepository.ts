@@ -2,6 +2,8 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 import {
   CATEGORIES,
+  OCCASIONS,
+  WEATHER,
   type AppearanceFuser,
   type Category,
   type Garment,
@@ -9,7 +11,12 @@ import {
   type GarmentPhoto,
   type NewGarment,
   type NewGarmentPhoto,
+  type GarmentShape,
+  type Occasion,
   type PaletteEntry,
+  type Pattern,
+  type WearEvent,
+  type Weather,
 } from '../domain/types';
 import { recordDeletion } from './deletionQueue';
 import type { GarmentImageStore } from './garmentImages';
@@ -20,8 +27,10 @@ export interface ClosetRepository {
   get(id: string): Promise<Garment | null>;
   add(garment: NewGarment): Promise<Garment>;
   update(id: string, patch: GarmentPatch): Promise<void>;
-  /** Records that the garments were worn now. */
-  markWorn(ids: string[]): Promise<void>;
+  /** Records that the garments were worn now, optionally as a saved outfit. */
+  markWorn(ids: string[], outfitId?: string | null): Promise<void>;
+  /** Newest first. */
+  listWears(garmentId: string): Promise<WearEvent[]>;
   /** Deletes the garment and its photos, drops it from outfits, and queues a server delete if it was uploaded. */
   remove(garment: Garment): Promise<void>;
 }
@@ -66,6 +75,15 @@ interface GarmentRow {
   last_worn_at: number | null;
   revision: number;
   photo_count: number;
+  pattern: string | null;
+  shape_json: string | null;
+  subcategory: string | null;
+  occasions_json: string;
+  weather_json: string;
+  brand: string | null;
+  size_label: string | null;
+  price: number | null;
+  purchased_at: number | null;
 }
 
 interface PhotoRow {
@@ -110,7 +128,8 @@ export class SqliteClosetRepository implements ClosetRepository, GarmentPhotos, 
     try {
       await this.db.withTransactionAsync(async () => {
         await this.db.runAsync(
-          'INSERT INTO garments (id, image_uri, color_hex, palette_json, embedding, created_at, category) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          `INSERT INTO garments (id, image_uri, color_hex, palette_json, embedding, created_at, category, pattern, shape_json)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           id,
           imageUri,
           fused.colorHex,
@@ -118,6 +137,8 @@ export class SqliteClosetRepository implements ClosetRepository, GarmentPhotos, 
           toBlob(fused.embedding),
           createdAt,
           input.category ?? null,
+          input.pattern ?? null,
+          input.shape ? JSON.stringify(input.shape) : null,
         );
         await this.insertPhoto(id, id, imageUri, input, createdAt);
       });
@@ -129,11 +150,26 @@ export class SqliteClosetRepository implements ClosetRepository, GarmentPhotos, 
   }
 
   async update(id: string, patch: GarmentPatch) {
+    // Column per synced field; values are already validated by their TypeScript types.
+    const synced: [string, unknown][] = [];
     if (patch.category !== undefined) {
-      // The server stores the category, so the garment has to be uploaded again.
+      synced.push(['category', patch.category]);
+      // A new category invalidates a subcategory from the old one.
+      if (patch.subcategory === undefined) synced.push(['subcategory', null]);
+    }
+    if (patch.subcategory !== undefined) synced.push(['subcategory', patch.subcategory]);
+    if (patch.pattern !== undefined) synced.push(['pattern', patch.pattern]);
+    if (patch.occasions !== undefined) synced.push(['occasions_json', JSON.stringify(patch.occasions)]);
+    if (patch.weather !== undefined) synced.push(['weather_json', JSON.stringify(patch.weather)]);
+    if (patch.brand !== undefined) synced.push(['brand', patch.brand?.trim() || null]);
+    if (patch.size !== undefined) synced.push(['size_label', patch.size?.trim() || null]);
+    if (patch.price !== undefined) synced.push(['price', patch.price]);
+    if (patch.purchasedAt !== undefined) synced.push(['purchased_at', patch.purchasedAt]);
+    if (synced.length > 0) {
+      // The server stores these, so the garment has to be uploaded again.
       await this.db.runAsync(
-        'UPDATE garments SET category = ?, synced_at = NULL, revision = revision + 1 WHERE id = ?',
-        patch.category,
+        `UPDATE garments SET ${synced.map(([c]) => `${c} = ?`).join(', ')}, synced_at = NULL, revision = revision + 1 WHERE id = ?`,
+        ...(synced.map(([, v]) => v) as (string | number | null)[]),
         id,
       );
     }
@@ -142,13 +178,22 @@ export class SqliteClosetRepository implements ClosetRepository, GarmentPhotos, 
     }
   }
 
-  async markWorn(ids: string[]) {
+  async markWorn(ids: string[], outfitId: string | null = null) {
     const now = Date.now();
     await this.db.withTransactionAsync(async () => {
       for (const id of ids) {
         await this.db.runAsync('UPDATE garments SET wear_count = wear_count + 1, last_worn_at = ? WHERE id = ?', now, id);
+        await this.db.runAsync('INSERT INTO wear_log (garment_id, worn_at, outfit_id) VALUES (?, ?, ?)', id, now, outfitId);
       }
     });
+  }
+
+  async listWears(garmentId: string): Promise<WearEvent[]> {
+    const rows = await this.db.getAllAsync<{ garment_id: string; worn_at: number; outfit_id: string | null }>(
+      'SELECT garment_id, worn_at, outfit_id FROM wear_log WHERE garment_id = ? ORDER BY worn_at DESC',
+      garmentId,
+    );
+    return rows.map((r) => ({ garmentId: r.garment_id, wornAt: r.worn_at, outfitId: r.outfit_id }));
   }
 
   async remove(garment: Garment) {
@@ -157,6 +202,7 @@ export class SqliteClosetRepository implements ClosetRepository, GarmentPhotos, 
       const row = await this.db.getFirstAsync<{ synced_at: number | null }>('SELECT synced_at FROM garments WHERE id = ?', garment.id);
       await this.db.runAsync('DELETE FROM garments WHERE id = ?', garment.id);
       await this.db.runAsync('DELETE FROM garment_photos WHERE garment_id = ?', garment.id);
+      await this.db.runAsync('DELETE FROM wear_log WHERE garment_id = ?', garment.id);
       if (row?.synced_at != null) await recordDeletion(this.db, 'garment', garment.id);
       await this.detachFromOutfits(garment.id);
     });
@@ -298,8 +344,32 @@ function fromRow(row: GarmentRow): Garment {
     lastWornAt: row.last_worn_at,
     photoCount: row.photo_count,
     revision: row.revision,
+    pattern: isPattern(row.pattern) ? row.pattern : null,
+    shape: row.shape_json ? (JSON.parse(row.shape_json) as GarmentShape) : null,
+    subcategory: row.subcategory,
+    occasions: parseList(row.occasions_json, OCCASIONS),
+    weather: parseList(row.weather_json, WEATHER),
+    brand: row.brand,
+    size: row.size_label,
+    price: row.price,
+    purchasedAt: row.purchased_at,
   };
 }
+
+const PATTERNS: Pattern[] = ['solid', 'striped', 'checked', 'printed', 'textured'];
+const isPattern = (s: string | null): s is Pattern => s !== null && (PATTERNS as string[]).includes(s);
+
+/** Parses a stored JSON list, keeping only known values (tolerates old or hand-edited rows). */
+function parseList<T extends string>(json: string, allowed: readonly T[]): T[] {
+  try {
+    const v = JSON.parse(json) as unknown;
+    return Array.isArray(v) ? (v.filter((x) => (allowed as readonly unknown[]).includes(x)) as T[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export type { Occasion, Weather };
 
 function photoFromRow(row: PhotoRow): GarmentPhoto {
   return {

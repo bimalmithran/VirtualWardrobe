@@ -48,3 +48,31 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, color: colors.text, fontWeight: '500' },
   activeLabel: { color: colors.accentText },
 });
+
+interface MultiProps<K extends string> {
+  options: ChipOption<K>[];
+  selected: readonly K[];
+  onChange: (next: K[]) => void;
+}
+
+/** Multi-select pill row (occasions, weather). */
+export function MultiChips<K extends string>({ options, selected, onChange }: MultiProps<K>) {
+  return (
+    <View style={[styles.row, styles.wrap]}>
+      {options.map((o) => {
+        const active = selected.includes(o.key);
+        return (
+          <Pressable
+            key={o.key}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: active }}
+            onPress={() => onChange(active ? selected.filter((k) => k !== o.key) : [...selected, o.key])}
+            style={[styles.chip, active && styles.active]}
+          >
+            <Text style={[styles.label, active && styles.activeLabel]}>{o.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}

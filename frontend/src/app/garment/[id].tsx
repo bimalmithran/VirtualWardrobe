@@ -9,8 +9,21 @@ import { MatchScoreCard } from '../../components/MatchScoreCard';
 import { PaletteCard } from '../../components/PaletteCard';
 import { PhotoStrip } from '../../components/PhotoStrip';
 import { SimilarGrid } from '../../components/SimilarGrid';
-import { CATEGORIES, CATEGORY_LABELS, type Category, type Garment, type GarmentPhoto } from '../../domain/types';
+import {
+  CATEGORIES,
+  CATEGORY_LABELS,
+  type Category,
+  type Garment,
+  type GarmentPatch,
+  type GarmentPhoto,
+  type Outfit,
+  type WearEvent,
+} from '../../domain/types';
 import { CloudSearchPanel } from '../../features/closet/CloudSearchPanel';
+import { GarmentTags } from '../../features/closet/GarmentTags';
+import { WearHistory } from '../../features/closet/WearHistory';
+import { useConsent } from '../../features/privacy/ConsentContext';
+import { orphanReason, type OrphanReason } from '../../style/compatibility';
 import { openAddPhotos } from '../../features/ingestion/modes';
 import { useWearer } from '../../features/self/SelfContext';
 import { relativeDay } from '../../lib/dates';
@@ -26,7 +39,11 @@ const openGarment = (id: string) => router.replace({ pathname: '/garment/[id]', 
 
 export default function GarmentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { closet, photos: photoStore, similarity, sync } = useServices();
+  const { closet, photos: photoStore, similarity, sync, outfits: outfitRepo } = useServices();
+  const { allows } = useConsent();
+  const [wears, setWears] = useState<WearEvent[]>([]);
+  const [outfits, setOutfits] = useState<Outfit[]>([]);
+  const [orphan, setOrphan] = useState<OrphanReason | null>(null);
   const wearer = useWearer();
   const [garment, setGarment] = useState<Garment | null | undefined>(undefined);
   const [photos, setPhotos] = useState<GarmentPhoto[]>([]);
@@ -34,13 +51,18 @@ export default function GarmentDetail() {
   const [similar, setSimilar] = useState<RankedGarment[]>([]);
 
   const load = useCallback(() => {
-    Promise.all([closet.list(), photoStore.listPhotos(id)]).then(([all, garmentPhotos]) => {
-      const current = all.find((g) => g.id === id) ?? null;
-      setGarment(current);
-      setPhotos(garmentPhotos);
-      setSimilar(current ? rankBySimilarity(current, all, SIMILAR_COUNT) : []);
-    });
-  }, [closet, photoStore, id]);
+    Promise.all([closet.list(), photoStore.listPhotos(id), closet.listWears(id), outfitRepo.list()]).then(
+      ([all, garmentPhotos, wearLog, savedOutfits]) => {
+        const current = all.find((g) => g.id === id) ?? null;
+        setGarment(current);
+        setPhotos(garmentPhotos);
+        setWears(wearLog);
+        setOutfits(savedOutfits);
+        setSimilar(current ? rankBySimilarity(current, all, SIMILAR_COUNT) : []);
+        setOrphan(current ? orphanReason(current, all) : null);
+      },
+    );
+  }, [closet, photoStore, outfitRepo, id]);
 
   // Reload on focus too: returning from the add-photo screen changes colour and similarity.
   useFocusEffect(load);
@@ -56,6 +78,12 @@ export default function GarmentDetail() {
 
   const setCategory = async (category: Category) => {
     await closet.update(garment.id, { category: category === garment.category ? null : category });
+    load();
+    sync.syncAll().catch(() => {});
+  };
+
+  const updateTags = async (patch: GarmentPatch) => {
+    await closet.update(garment.id, patch);
     load();
     sync.syncAll().catch(() => {});
   };
@@ -137,6 +165,15 @@ export default function GarmentDetail() {
 
       <Text style={[ui.h2, styles.label]}>Category</Text>
       <Chips options={CATEGORY_OPTIONS} selected={garment.category} onSelect={setCategory} />
+      <GarmentTags key={garment.revision} garment={garment} onChange={updateTags} />
+
+      {orphan && (
+        <View style={[ui.card, styles.orphan]} accessibilityRole="alert">
+          <Text style={[ui.h2, { color: colors.warn }]}>Orphan item</Text>
+          <Text style={ui.body}>{orphan.message}</Text>
+          <Text style={ui.muted}>Nothing in your closet makes a complete outfit with this yet.</Text>
+        </View>
+      )}
 
       <View style={[ui.card, styles.wear]}>
         <View style={{ flex: 1 }}>
@@ -145,6 +182,7 @@ export default function GarmentDetail() {
         </View>
         <Button title="Wore it today" variant="secondary" onPress={woreToday} />
       </View>
+      <WearHistory garment={garment} wears={wears} outfits={outfits} />
 
       {fit && <MatchScoreCard hex={garment.colorHex} match={fit} />}
 
@@ -159,7 +197,7 @@ export default function GarmentDetail() {
         />
       )}
 
-      {similarity && garment.embedding && (
+      {similarity && allows('cloud_sync') && garment.embedding && (
         <CloudSearchPanel garment={{ ...garment, embedding: garment.embedding }} remote={similarity} onOpen={openGarment} />
       )}
 
@@ -181,4 +219,5 @@ const styles = StyleSheet.create({
   palette: { marginTop: 12 },
   wear: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 12 },
   section: { marginTop: 20, marginBottom: 8 },
+  orphan: { gap: 4, marginTop: 12, borderColor: colors.warn },
 });

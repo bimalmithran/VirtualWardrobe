@@ -30,7 +30,7 @@ export default function OutfitDetail() {
   const pieces = piecesOf(outfit, garments);
 
   const wear = async () => {
-    await Promise.all([repo.markWorn(outfit.id), closet.markWorn(pieces.map((g) => g.id))]);
+    await Promise.all([repo.markWorn(outfit.id), closet.markWorn(pieces.map((g) => g.id), outfit.id)]);
     reload();
   };
 

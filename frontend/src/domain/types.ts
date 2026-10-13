@@ -54,7 +54,7 @@ export interface PaletteEntry {
 }
 
 /** Top-level slugs of the server's `categories` table. */
-export const CATEGORIES = ['tops', 'bottoms', 'outerwear', 'footwear', 'accessories'] as const;
+export const CATEGORIES = ['tops', 'bottoms', 'outerwear', 'footwear', 'ethnic', 'accessories'] as const;
 export type Category = (typeof CATEGORIES)[number];
 
 export const CATEGORY_LABELS: Record<Category, string> = {
@@ -62,8 +62,50 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   bottoms: 'Bottoms',
   outerwear: 'Outerwear',
   footwear: 'Footwear',
+  ethnic: 'Indian Ethnic Wear',
   accessories: 'Accessories',
 };
+
+/** Second-level slugs, mirroring the server's category tree. */
+export const SUBCATEGORIES: Record<Category, { slug: string; label: string }[]> = {
+  tops: [
+    { slug: 'shirts', label: 'Shirt' },
+    { slug: 't-shirts', label: 'T-shirt' },
+    { slug: 'knitwear', label: 'Knitwear' },
+  ],
+  bottoms: [
+    { slug: 'trousers', label: 'Trousers' },
+    { slug: 'jeans', label: 'Jeans' },
+    { slug: 'skirts', label: 'Skirt' },
+  ],
+  outerwear: [
+    { slug: 'jackets', label: 'Jacket' },
+    { slug: 'coats', label: 'Coat' },
+  ],
+  footwear: [
+    { slug: 'sneakers', label: 'Sneakers' },
+    { slug: 'formal-shoes', label: 'Formal shoes' },
+  ],
+  ethnic: [
+    { slug: 'kurtas', label: 'Kurta' },
+    { slug: 'sarees', label: 'Saree' },
+    { slug: 'lehengas', label: 'Lehenga' },
+    { slug: 'salwar-sets', label: 'Salwar set' },
+    { slug: 'sherwanis', label: 'Sherwani' },
+    { slug: 'mundu-dhoti', label: 'Mundu / dhoti' },
+  ],
+  accessories: [],
+};
+
+/** Ethnic pieces that are a whole look on their own; a kurta still pairs with a bottom. */
+export const COMPLETE_ETHNIC = ['sarees', 'lehengas', 'salwar-sets', 'sherwanis'];
+
+export const OCCASIONS = ['casual', 'work', 'formal', 'party', 'festive', 'wedding', 'sport', 'lounge'] as const;
+export type Occasion = (typeof OCCASIONS)[number];
+
+/** Weather seasons as lived in India; 'all' means trans-seasonal. */
+export const WEATHER = ['summer', 'monsoon', 'winter'] as const;
+export type Weather = (typeof WEATHER)[number];
 
 export interface Garment {
   id: string;
@@ -82,6 +124,26 @@ export interface Garment {
   photoCount: number;
   /** Bumped by every change the server must see; sync only marks the revision it uploaded. */
   revision: number;
+  /** Read from the main photo; the user can correct it. */
+  pattern: Pattern | null;
+  shape: GarmentShape | null;
+  subcategory: string | null;
+  occasions: Occasion[];
+  /** Weather it suits; empty means not tagged (treated as any). */
+  weather: Weather[];
+  brand: string | null;
+  size: string | null;
+  /** Purchase price in whole rupees, for cost-per-wear. */
+  price: number | null;
+  purchasedAt: number | null;
+}
+
+/** One time a garment was worn. */
+export interface WearEvent {
+  garmentId: string;
+  wornAt: number;
+  /** Set when it was worn as part of a saved outfit. */
+  outfitId: string | null;
 }
 
 /** One photo of a garment, with what the pipeline read from that photo alone. */
@@ -107,8 +169,10 @@ export interface FusedAppearance {
 /** Combines per-photo views into one appearance. Views are never empty. */
 export type AppearanceFuser = (views: GarmentView[]) => FusedAppearance;
 
-/** User-editable garment fields. Changing category re-queues the garment for upload. */
-export type GarmentPatch = Partial<Pick<Garment, 'category' | 'favorite'>>;
+/** User-editable garment fields. Everything but `favorite` re-queues the garment for upload. */
+export type GarmentPatch = Partial<
+  Pick<Garment, 'category' | 'favorite' | 'pattern' | 'subcategory' | 'occasions' | 'weather' | 'brand' | 'size' | 'price' | 'purchasedAt'>
+>;
 
 export interface Outfit {
   id: string;
@@ -129,6 +193,8 @@ export interface NewGarmentPhoto {
 
 export interface NewGarment extends NewGarmentPhoto {
   category?: Category | null;
+  pattern?: Pattern | null;
+  shape?: GarmentShape | null;
 }
 
 export type Depth = 'light' | 'medium' | 'deep';
@@ -178,3 +244,9 @@ export interface Wearer {
   undertone: Undertone | null;
   colouring: PersonalColouring | null;
 }
+
+/** Tag fields of a garment nobody has tagged yet. */
+export const EMPTY_TAGS: Pick<
+  Garment,
+  'pattern' | 'shape' | 'subcategory' | 'occasions' | 'weather' | 'brand' | 'size' | 'price' | 'purchasedAt'
+> = { pattern: null, shape: null, subcategory: null, occasions: [], weather: [], brand: null, size: null, price: null, purchasedAt: null };

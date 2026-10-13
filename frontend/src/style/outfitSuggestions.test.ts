@@ -1,4 +1,4 @@
-import type { Category, Garment, Undertone, Wearer } from '../domain/types';
+import { EMPTY_TAGS, type Category, type Garment, type Undertone, type Wearer } from '../domain/types';
 import { pairHarmony, scoreOutfit, suggestOutfits } from './outfitSuggestions';
 
 const g = (id: string, colorHex: string, category: Category | null, lastWornAt: number | null = null): Garment => ({
@@ -15,6 +15,7 @@ const g = (id: string, colorHex: string, category: Category | null, lastWornAt: 
   lastWornAt,
   photoCount: 1,
   revision: 0,
+  ...EMPTY_TAGS,
 });
 
 const NOW = 1_000_000_000_000;

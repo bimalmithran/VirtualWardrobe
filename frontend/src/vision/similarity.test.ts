@@ -1,4 +1,4 @@
-import type { Garment } from '../domain/types';
+import { EMPTY_TAGS, type Garment } from '../domain/types';
 import { rankBySimilarity } from './similarity';
 
 const unit = (...v: number[]) => {
@@ -20,6 +20,7 @@ const g = (id: string, embedding: Float32Array | null): Garment => ({
   syncedAt: null,
   photoCount: 1,
   revision: 0,
+  ...EMPTY_TAGS,
 });
 
 test('ranks by cosine similarity, excluding the query and unembedded garments', () => {

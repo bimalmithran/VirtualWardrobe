@@ -1,6 +1,6 @@
 import { ApiError } from '../api/httpClient';
 import type { UploadableGarment, UploadableOutfit } from '../api/wardrobeApi';
-import { EMPTY_PROPORTIONS, type DigitalTwin, type Garment, type Outfit } from '../domain/types';
+import { EMPTY_PROPORTIONS, EMPTY_TAGS, type DigitalTwin, type Garment, type Outfit } from '../domain/types';
 import type { PendingDeletion } from '../storage/deletionQueue';
 import { CloudSyncService, type CloudSyncDeps } from './cloudSync';
 
@@ -27,6 +27,7 @@ const garment = (id: string): Garment => ({
   lastWornAt: null,
   photoCount: 1,
   revision: 0,
+  ...EMPTY_TAGS,
 });
 
 const outfit = (id: string, itemIds: string[]): Outfit => ({ id, name: id, itemIds, createdAt: 0, lastWornAt: null, syncedAt: null });

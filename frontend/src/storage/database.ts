@@ -73,6 +73,29 @@ const MIGRATIONS: ((db: SQLiteDatabase) => Promise<void>)[] = [
         created_at INTEGER NOT NULL
       );
     `),
+  // 6: tags (pattern, silhouette, occasion, weather, brand, size, price), and a wear log so the
+  // detail screen can show history. Existing wear counts keep their last date as one event.
+  (db) =>
+    db.execAsync(`
+      ALTER TABLE garments ADD COLUMN pattern TEXT;
+      ALTER TABLE garments ADD COLUMN shape_json TEXT;
+      ALTER TABLE garments ADD COLUMN subcategory TEXT;
+      ALTER TABLE garments ADD COLUMN occasions_json TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE garments ADD COLUMN weather_json TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE garments ADD COLUMN brand TEXT;
+      ALTER TABLE garments ADD COLUMN size_label TEXT;
+      ALTER TABLE garments ADD COLUMN price INTEGER;
+      ALTER TABLE garments ADD COLUMN purchased_at INTEGER;
+      CREATE TABLE IF NOT EXISTS wear_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        garment_id TEXT NOT NULL,
+        worn_at INTEGER NOT NULL,
+        outfit_id TEXT
+      );
+      CREATE INDEX IF NOT EXISTS wear_log_garment ON wear_log (garment_id, worn_at DESC);
+      INSERT INTO wear_log (garment_id, worn_at)
+        SELECT id, last_worn_at FROM garments WHERE last_worn_at IS NOT NULL;
+    `),
 ];
 
 /** Passed to <SQLiteProvider onInit>. */

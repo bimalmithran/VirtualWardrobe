@@ -104,3 +104,22 @@ deliberately left out.
 - **Light payload**: cloud backup uploads a ≤512 px WebP thumbnail (Skia encoder, keeps alpha;
   ~20–60 KB) with the vector, colours and tags, instead of the 1–3 MB PNG. The server now
   accepts PNG/WebP/JPEG by signature.
+
+## 3. Wardrobe management
+
+- **Indian Ethnic Wear is a top-level category** (`ethnic`) with subcategories kurta, saree,
+  lehenga, salwar set, sherwani, mundu/dhoti, on both client and server. Sarees, lehengas,
+  salwar sets and sherwanis count as complete looks; a kurta still pairs with a bottom.
+- **Subcategory is sent as the item's `category_slug`** (the server's tree already supports
+  it), so cloud data keeps the most specific type.
+- **Tags**: pattern (auto-detected, editable), occasions, weather (summer / monsoon / winter —
+  Indian seasons rather than four temperate ones), brand, size, price in ₹. Everything except
+  price and favourite syncs as item metadata; **price stays on the phone**.
+- **Wear history** is a new `wear_log` table. Old wear counts can't be back-dated, so the
+  last known date becomes one event and the rest show as "earlier wears without a date".
+- **Orphan items**: a tagged piece is an orphan if nothing it needs to be worn with exists
+  (`missing`) or nothing of that kind pairs at ≥ 0.55 (`clash`). Pairing = colour harmony
+  with a penalty when two busy patterns meet. Shown as a badge, a closet filter and a
+  warning on the detail screen.
+- **Cost per wear** is shown per garment for free; the wardrobe-wide analytics screen is a
+  premium perk (section 5).

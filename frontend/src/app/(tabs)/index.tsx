@@ -7,22 +7,26 @@ import { Button } from '../../components/Button';
 import { Chips, type ChipOption } from '../../components/Chips';
 import { CATEGORIES, CATEGORY_LABELS, type Category, type Garment } from '../../domain/types';
 import { useServices } from '../../services/ServicesProvider';
+import { findOrphans } from '../../style/compatibility';
 import { colors, ui } from '../../theme';
 
 const COLUMNS = 3;
 const GAP = 8;
 
-type Filter = 'all' | 'favorites' | 'untagged' | Category;
+type Filter = 'all' | 'favorites' | 'untagged' | 'orphans' | Category;
 
 const FILTERS: ChipOption<Filter>[] = [
   { key: 'all', label: 'All' },
   { key: 'favorites', label: '♥ Favourites' },
   ...CATEGORIES.map((c) => ({ key: c, label: CATEGORY_LABELS[c] })),
   { key: 'untagged', label: 'Untagged' },
+  { key: 'orphans', label: '⚠ Orphans' },
 ];
 
-function matches(g: Garment, filter: Filter) {
+function matches(g: Garment, filter: Filter, orphans: Map<string, unknown>) {
   switch (filter) {
+    case 'orphans':
+      return orphans.has(g.id);
     case 'all':
       return true;
     case 'favorites':
@@ -38,7 +42,8 @@ export default function Closet() {
   const { closet, sync } = useServices();
   const [garments, setGarments] = useState<Garment[] | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
-  const visible = useMemo(() => garments?.filter((g) => matches(g, filter)) ?? [], [garments, filter]);
+  const orphans = useMemo(() => findOrphans(garments ?? []), [garments]);
+  const visible = useMemo(() => garments?.filter((g) => matches(g, filter, orphans)) ?? [], [garments, filter, orphans]);
   const { width } = useWindowDimensions();
   const tile = (width - 16 * 2 - GAP * (COLUMNS - 1)) / COLUMNS;
 
@@ -104,6 +109,9 @@ export default function Closet() {
           <Image source={{ uri: item.imageUri }} style={styles.image} resizeMode="contain" />
           <View style={[styles.dot, { backgroundColor: item.colorHex }]} />
           {item.favorite && <Ionicons name="heart" size={16} color={colors.danger} style={styles.heart} />}
+          {orphans.has(item.id) && (
+            <Ionicons name="alert-circle" size={16} color={colors.warn} style={styles.orphan} accessibilityLabel="Orphan item" />
+          )}
         </Pressable>
       )}
     />
@@ -122,6 +130,7 @@ const styles = StyleSheet.create({
   count: { marginBottom: 4 },
   none: { textAlign: 'center', marginTop: 24 },
   heart: { position: 'absolute', left: 6, top: 6 },
+  orphan: { position: 'absolute', right: 6, top: 6 },
   tile: { borderRadius: 12, overflow: 'hidden' },
   image: { width: '100%', height: '100%' },
   dot: { position: 'absolute', right: 6, bottom: 6, width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: colors.surface },

@@ -58,6 +58,8 @@ export function IngestionResult({ copy, result, outcome, onAgain, onExit, onCate
         style={screenStyles.gap}
       />
       <Text style={[ui.muted, screenStyles.gap]}>
+        Pattern: {result.pattern}
+        {result.palette[1] ? ` · secondary ${result.palette[1].hex}` : ''} ·{' '}
         {Object.entries(result.timingsMs).map(([k, v]) => `${k} ${v} ms`).join(' · ')}
         {result.embedding ? ` · ${result.embedding.length}-d vector` : ''}
       </Text>

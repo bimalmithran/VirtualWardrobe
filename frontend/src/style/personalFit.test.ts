@@ -1,4 +1,4 @@
-import type { Garment, PersonalColouring, Wearer } from '../domain/types';
+import { EMPTY_TAGS, type Garment, type PersonalColouring, type Wearer } from '../domain/types';
 import { SEASON_PALETTES } from '../vision/personColouring';
 import { scoreOutfit } from './outfitSuggestions';
 import { coloursToAdd, paletteCloseness, rankForWearer, scoreForWearer } from './personalFit';
@@ -17,6 +17,7 @@ const g = (id: string, colorHex: string, category: Garment['category'] = 'tops')
   lastWornAt: null,
   photoCount: 1,
   revision: 0,
+  ...EMPTY_TAGS,
 });
 
 const colouring = (season: PersonalColouring['season'], contrast: PersonalColouring['contrast'] = 'medium'): PersonalColouring => ({
