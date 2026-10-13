@@ -126,11 +126,46 @@ No `adb`? Install Android platform-tools, e.g. `sudo pacman -S android-tools` on
 ### First launch
 
 1. **Digital Twin:** enter your height, body shape and skin undertone.
-2. **Model download:** on first use of **Add** or **Live Shop**, the app downloads its on-device
-   AI models once (about 56 MB: background removal 44 MB and MobileCLIP 12 MB). Use Wi-Fi.
+2. **Model download:** on first use of **Add**, **Live Shop** or **Your colours**, the app
+   downloads its on-device AI models once (about 56 MB: background removal 44 MB and MobileCLIP
+   12 MB). Use Wi-Fi.
 3. **Camera permission:** allow it when asked.
 4. Photograph a garment on a plain background, then tag its category on the result screen.
    Tag at least one top and one bottom to get suggestions in the **Outfits** tab.
+
+### Using the app
+
+**Several photos of one garment.** One photo's colour depends on its light and angle. Add more
+shots (the back, a close-up, the garment in other light) and the app combines them into a truer
+colour and style vector, which improves outfit suggestions and "similar items".
+
+- Right after adding a garment, tap **Add another photo of this garment**.
+- Or open any garment from the **Closet** and tap the **Add photo** tile in its photo strip.
+- Tap a thumbnail to view it; long-press one to remove a bad shot. A garment keeps at least one
+  photo.
+
+**Your colours (photos of you).** Open the **Twin** tab → **Your colours**, or tap the prompt on
+the **Outfits** tab.
+
+1. Tap **Take a photo** (opens the front camera; **Flip** switches lenses) or **Upload** to pick
+   one from the gallery.
+2. The app reads your skin tone, undertone (warm, cool or neutral), depth and skin-to-hair
+   contrast, and shows your colour season with a palette of colours that flatter you.
+3. Below that: **Best on you from your closet** ranks your garments by how well they suit you,
+   and **Colours to add to your wardrobe** lists palette colours your closet is missing.
+4. If your photos suggest a different undertone from your Digital Twin, a button offers to use it.
+   Nothing changes unless you tap it.
+
+After that, outfit suggestions, the "suits you" score on outfit cards, garment match scores and
+Live Shop all take your palette and contrast into account.
+
+For a reliable reading, face a window in daylight, keep your face and neck visible, and avoid
+beauty filters and heavy make-up. Phone white balance affects the result, so a few photos in
+different light give a steadier answer. Long-press a photo to remove it.
+
+**Privacy:** photos of you are processed and stored on the phone only and are never uploaded.
+For garments, the server receives only the main cutout plus the combined colour and style vector;
+extra garment photos stay on the phone.
 
 ### Check that sync works
 
@@ -147,6 +182,10 @@ No `adb`? Install Android platform-tools, e.g. `sudo pacman -S android-tools` on
 adb install -r frontend/dist/VirtualWardrobe-release.apk   # update, keeps data
 adb uninstall com.bimal.virtualwardrobe                     # remove app and its local data
 ```
+
+Updating keeps your closet, outfits, photos and downloaded models. The app upgrades its local
+database on first launch; garments added before multi-photo support become garments with one
+photo.
 
 ---
 
@@ -195,3 +234,8 @@ npm run build:apk               # eas build -p android --profile preview → dow
 | `INSTALL_FAILED_UPDATE_INCOMPATIBLE` | An install signed with a different key exists. Run `adb uninstall com.bimal.virtualwardrobe` first. This erases local data. |
 | Model download fails | Needs internet access to huggingface.co. Retry from the **Twin** tab. |
 | App opened in Expo Go shows an error | Expected. The app needs its own APK because ONNX Runtime is a native module. |
+| App closes as soon as it starts removing a background | You have an APK built before the ONNX Runtime linking fix. Rebuild and reinstall with `adb install -r` (keeps data). |
+| "ONNX Runtime native module is not available in this build" | Same cause as above: the APK doesn't include the on-device AI runtime. Rebuild and reinstall. |
+| Your colours: "too dark" / "overexposed" | Retake facing a window in daylight, without flash or direct sun on your face. |
+| Your colours: "Not enough skin is visible" | Use a photo where your face is clearly shown, not from behind or heavily filtered. |
+| Your colours result looks wrong | Lighting shifts skin colour. Add two or three photos in different daylight; the app combines them. Remove any odd one with a long-press. |
