@@ -61,3 +61,46 @@ deliberately left out.
   suggested from bust/waist/hip ratios, never silently applied.
 - **Web storage**: SecureStore has no web build, so web uses localStorage (documented as only
   as safe as the origin).
+
+## 2. Camera, capture & edge AI
+
+- **Tiering** (`src/ml/capabilities.ts`): RAM + a 2M-flop JS micro-benchmark + whether ONNX
+  Runtime is linked. ≥6 GB and fast → high (both models resident); ≥3 GB → mid (one model at
+  a time); below, slow, or no runtime → low. Thresholds were picked from the two target phones
+  (8 GB Galaxy M-series, Edge 20 Pro = high).
+- **Web detection** probes WebNN (`navigator.ml`), WebGPU (an adapter is actually requested),
+  WebGL2, and WebAssembly incl. SIMD and threads (`crossOriginIsolated`).
+- **Routing**: high/mid run everything on the phone. Low tier goes *hybrid*: the 44 MB 1024²
+  background-removal model runs on the server, the 12 MB MobileCLIP stays on the phone. With
+  no runtime at all (Expo Go, no-wasm browser) both go to the cloud. **Cloud is only used with
+  the "cloud processing" consent**; without it the phone runs the models anyway, slowly.
+  Cloud failure falls back to the phone when it has a runtime.
+- **Photos of the user never use the cloud path**, whatever the tier (the consent text promises it).
+- **NPU is opt-in** (Twin → AI on this device). NNAPI/Core ML often reject or slow down the
+  dynamically-quantised int8 graphs these models ship as, so XNNPACK → CPU is the default.
+  Any accelerator that fails session creation falls back to CPU automatically.
+- **Server-side vision** uses the same ONNX files via `onnxruntime_go` (cgo, `-tags onnx`,
+  ORT 1.29). The API binary now ships on Debian slim instead of static distroless because of
+  that. Models download into a volume on first boot; `/api/vision/*` returns 503 until ready.
+  Default server cutout model is RMBG-1.4 to match the app, with a startup warning about its
+  non-commercial licence (`VISION_SEGMENTATION=isnet` for commercial use). Photos are processed
+  in memory and never written.
+- **Junk filter** gains histogram clipping (crushed shadows / blown highlights) on top of the
+  mean-brightness, contrast and Laplacian checks, and a one-line headline for live feedback.
+- **Live feedback**: expo-camera has no frame processors, so the camera grabs a tiny
+  unprocessed frame every 1.5 s (shutter animation off) and runs the junk filter on a 256 px
+  copy. No new native dependency (VisionCamera would add frame processors but also a native
+  module and worklets).
+- **Tight crop**: cutouts are cropped to the garment's bounding box + 4% margin before
+  colour, pattern, embedding and storage.
+- **Embedding input changed from centre-crop to letterbox** so long garments (kurtas, sarees)
+  keep their hem. Vectors of garments saved before this change are slightly different;
+  similarity still works but is a little less precise between old and new items. Adding a new
+  photo to an old garment re-fuses it.
+- **Pattern** (solid / striped / checked / printed / textured) from Sobel edge density and an
+  orientation histogram inside the eroded mask. Heuristic, ~5 ms; documented as such.
+- **Silhouette geometry** (aspect, taper, waist definition, fill) is measured from the mask and
+  feeds cut/body-shape matching (section 4).
+- **Light payload**: cloud backup uploads a ≤512 px WebP thumbnail (Skia encoder, keeps alpha;
+  ~20–60 KB) with the vector, colours and tags, instead of the 1–3 MB PNG. The server now
+  accepts PNG/WebP/JPEG by signature.

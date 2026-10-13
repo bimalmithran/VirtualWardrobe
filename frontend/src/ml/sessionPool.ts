@@ -22,8 +22,12 @@ export class SessionPool implements ModelRunner, ModelMemory {
   constructor(
     private readonly files: ModelFileLocator,
     private readonly status: ModelStatusStore,
-    readonly maxResident: number,
+    private readonly limits: () => { maxResident: number; executionProviders: string[] },
   ) {}
+
+  get maxResident() {
+    return this.limits().maxResident;
+  }
 
   run(key: ModelKey, { input, dims, pickOutput }: InferenceRequest): Promise<InferenceResult> {
     return this.exclusive(async () => {
@@ -61,16 +65,30 @@ export class SessionPool implements ModelRunner, ModelMemory {
 
     this.status.set(key, { state: 'loading' });
     try {
-      const session = await getOrt().InferenceSession.create(this.files.path(key), {
-        executionProviders: ['cpu'],
-        graphOptimizationLevel: 'all',
-      });
+      const session = await this.createSession(key);
       this.sessions.set(key, session);
       this.status.set(key, { state: 'ready' });
       return session;
     } catch (e) {
       this.status.set(key, { state: 'error', message: errorMessage(e) });
       throw e;
+    }
+  }
+
+  /**
+   * Asks for the planned accelerators first. An accelerator that rejects the graph (some
+   * NPU drivers refuse int8 ops) fails session creation, so CPU is the guaranteed retry.
+   */
+  private async createSession(key: ModelKey): Promise<InferenceSession> {
+    const providers = this.limits().executionProviders;
+    const create = (executionProviders: string[]) =>
+      getOrt().InferenceSession.create(this.files.path(key), { executionProviders, graphOptimizationLevel: 'all' });
+    try {
+      return await create(providers);
+    } catch (e) {
+      if (providers.length === 1 && providers[0] === 'cpu') throw e;
+      console.warn(`${key}: ${providers.join(',')} failed, using CPU`, e);
+      return create(['cpu']);
     }
   }
 

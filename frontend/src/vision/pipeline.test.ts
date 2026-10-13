@@ -15,7 +15,7 @@ function stages(overrides: Partial<PipelineStages> = {}): PipelineStages {
     removeBackground: { removeBackground: jest.fn(async () => ({ cutout: working, coverage: 0.4 })) },
     embedder: { embed: jest.fn(async () => new Float32Array(512)) },
     extractPalette: jest.fn(() => [{ hex: '#C82828', share: 0.8 }, { hex: '#FFFFFF', share: 0.2 }]),
-    assessQuality: jest.fn(() => ({ brightness: 120, contrast: 40, sharpness: 200, issues: [] })),
+    assessQuality: jest.fn(() => ({ brightness: 120, contrast: 40, sharpness: 200, shadowClip: 0, highlightClip: 0, issues: [], headline: null })),
     ...overrides,
   };
 }

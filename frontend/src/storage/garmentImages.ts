@@ -1,8 +1,19 @@
+import { Buffer } from 'buffer';
 import { Directory, File, Paths } from 'expo-file-system';
+
+import { makeThumbnail } from '../image/pixels';
+
+/** Longest side of the image cloud backup uploads. */
+export const UPLOAD_MAX_SIDE = 512;
 
 /** Reads a stored cutout for upload. Sync depends on this, not on the full store. */
 export interface GarmentImageReader {
   readBase64(uri: string): Promise<string>;
+  /**
+   * A light WebP thumbnail (≤ UPLOAD_MAX_SIDE) instead of the full PNG: the server needs a
+   * picture for search results and restore, not the 1024 px original.
+   */
+  readUploadBase64(uri: string): Promise<string>;
 }
 
 /** Where garment cutout PNGs live. */
@@ -33,6 +44,11 @@ export class FileGarmentImageStore implements GarmentImageStore {
 
   readBase64(uri: string) {
     return new File(uri).base64();
+  }
+
+  async readUploadBase64(uri: string) {
+    const bytes = await new File(uri).bytes();
+    return Buffer.from(makeThumbnail(bytes, UPLOAD_MAX_SIDE)).toString('base64');
   }
 
   /** Deletes every image in this store. */

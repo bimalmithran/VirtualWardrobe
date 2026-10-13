@@ -127,3 +127,20 @@ type Match struct {
 	// Cosine similarity in [-1, 1]; 1 means the same direction.
 	Similarity float64 `json:"similarity"`
 }
+
+// ImageExt identifies a stored image by its signature: ".png", ".webp", ".jpg", or "" if
+// it is none of them.
+func ImageExt(data []byte) string {
+	switch {
+	case len(data) >= 8 && string(data[:8]) == "\x89PNG\r\n\x1a\n":
+		return ".png"
+	case len(data) >= 12 && string(data[:4]) == "RIFF" && string(data[8:12]) == "WEBP":
+		return ".webp"
+	case len(data) >= 3 && data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF:
+		return ".jpg"
+	}
+	return ""
+}
+
+// ImageExts are every format the store may hold, for deleting without knowing which.
+var ImageExts = []string{".png", ".webp", ".jpg"}

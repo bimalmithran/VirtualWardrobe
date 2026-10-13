@@ -35,9 +35,10 @@ type OutfitRepository interface {
 // ImageStore keeps garment cutouts and returns the URL (absolute or server-relative)
 // under which the image can be fetched.
 type ImageStore interface {
-	SavePNG(ctx context.Context, user domain.UserID, item domain.ClientItemID, png []byte) (url string, err error)
-	// RemovePNG deletes a stored cutout; a missing file is not an error.
-	RemovePNG(ctx context.Context, user domain.UserID, item domain.ClientItemID) error
+	// SaveImage stores a PNG, WebP or JPEG (already checked by DecodeImage) and returns its URL.
+	SaveImage(ctx context.Context, user domain.UserID, item domain.ClientItemID, data []byte) (url string, err error)
+	// RemoveImage deletes a stored image in any format; a missing file is not an error.
+	RemoveImage(ctx context.Context, user domain.UserID, item domain.ClientItemID) error
 }
 
 // AccountRepository holds what the DPDP rights need: consent records, the profile to

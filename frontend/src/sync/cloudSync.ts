@@ -139,12 +139,12 @@ export class CloudSyncService implements CloudSync {
     }
 
     for (const g of pending) {
-      // One garment at a time keeps at most one base64 PNG (~2-4 MB) in JS memory.
+      // A WebP thumbnail plus the vector and colours: tens of KB per garment, not megabytes.
       const ok = await attempt(async () => {
         await this.deps.remote.uploadGarment({
           clientItemId: g.id,
           categorySlug: g.category,
-          pngBase64: await this.deps.images.readBase64(g.imageUri),
+          imageBase64: await this.deps.images.readUploadBase64(g.imageUri),
           colorHex: g.colorHex,
           embedding: g.embedding!, // listUnsynced only returns rows with an embedding
           metadata: {

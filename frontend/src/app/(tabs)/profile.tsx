@@ -8,6 +8,7 @@ import { MODELS, type ModelKey } from '../../config/models';
 import { useProfile } from '../../features/profile/ProfileContext';
 import { useSelf } from '../../features/self/SelfContext';
 import { useConsent } from '../../features/privacy/ConsentContext';
+import { DeviceAiCard } from '../../features/profile/DeviceAiCard';
 import { useI18n } from '../../i18n/I18nProvider';
 import { SUB_SEASONS } from '../../style/seasons';
 import { useModelStatuses } from '../../ml/modelStatus';
@@ -50,6 +51,7 @@ export default function ProfileTab() {
                 {t('privacy.choices')} · {t('common.language')} · {t('privacy.rights')}
               </Text>
             </Pressable>
+            <DeviceAiCard />
             {missing.length > 0 ? (
               <ModelSetup required={missing} />
             ) : (

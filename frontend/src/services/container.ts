@@ -1,4 +1,3 @@
-import * as Device from 'expo-device';
 import { Directory, Paths } from 'expo-file-system';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
@@ -20,9 +19,13 @@ import { SqliteOutfitRepository, type OutfitRepository } from '../storage/outfit
 import { KeyValueProfileRepository, type ProfileRepository } from '../storage/profileRepository';
 import { SqliteSelfPhotoRepository, type SelfPhotoRepository } from '../storage/selfPhotoRepository';
 import { CloudSyncService, DisabledCloudSync, type CloudSync } from '../sync/cloudSync';
-import { SaliencyBackgroundRemover } from '../vision/backgroundRemoval';
+import type { PlanInputs } from '../ml/capabilities';
+import { detectCapabilities, probeAccelerators } from '../ml/deviceCapabilities';
+import { ExecutionRouter } from '../ml/executionRouter';
+import { SaliencyBackgroundRemover, type BackgroundRemover } from '../vision/backgroundRemoval';
+import { CloudBackgroundRemover, CloudEmbedder, RoutedBackgroundRemover, RoutedEmbedder } from '../vision/cloudVision';
 import { extractPalette } from '../vision/colorExtraction';
-import { MobileClipEmbedder } from '../vision/embedding';
+import { MobileClipEmbedder, type GarmentEmbedder } from '../vision/embedding';
 import { fuseViews } from '../vision/fusion';
 import { assessQuality } from '../vision/junkFilter';
 import { GarmentPipeline } from '../vision/pipeline';
@@ -52,35 +55,54 @@ export interface AppServices {
     status: ModelStatusStore;
     files: ModelDownloader;
     memory: ModelMemory;
+    /** Device tier and where each model runs. */
+    router: ExecutionRouter;
   };
 }
 
-const GB = 1024 ** 3;
-
 interface MlServices {
-  models: AppServices['models'];
-  pipeline: GarmentPipeline;
+  models: Omit<AppServices['models'], 'router'>;
+  router: ExecutionRouter;
+  deviceRemover: BackgroundRemover;
+  deviceEmbedder: GarmentEmbedder;
   selfAnalyzer: SelfAnalyzer;
 }
 
 let ml: MlServices | null = null;
+/** Plan inputs come from the current app services (consent, API); set in createAppServices. */
+let planInputs: () => PlanInputs = () => ({ cloudAvailable: false, cloudConsent: false, preferNpu: false });
 
 /** ML objects own native memory and download state, so there is exactly one set per process. */
 function mlServices(): MlServices {
   if (ml) return ml;
   const status = new ModelStatusStore();
   const files = new ModelDownloader(status);
-  // 8 GB phones keep both models warm; smaller devices swap them per stage.
-  const sessions = new SessionPool(files, status, (Device.totalMemory ?? 0) >= 6 * GB ? 2 : 1);
-  const removeBackground = new SaliencyBackgroundRemover(sessions);
-  const pipeline = new GarmentPipeline({
-    removeBackground,
-    embedder: new MobileClipEmbedder(sessions),
-    extractPalette,
-    assessQuality,
+  const router = new ExecutionRouter(detectCapabilities(), () => planInputs());
+  probeAccelerators(router.caps).then((c) => router.update(c)).catch(() => {});
+  const sessions = new SessionPool(files, status, () => {
+    const plan = router.plan();
+    return { maxResident: plan.maxResidentSessions, executionProviders: plan.executionProviders };
   });
-  ml = { models: { status, files, memory: sessions }, pipeline, selfAnalyzer: new OnDeviceSelfAnalyzer(removeBackground) };
+  const deviceRemover = new SaliencyBackgroundRemover(sessions);
+  ml = {
+    models: { status, files, memory: sessions },
+    router,
+    deviceRemover,
+    deviceEmbedder: new MobileClipEmbedder(sessions),
+    // Photos of the user never leave the phone, so self analysis always runs on the device.
+    selfAnalyzer: new OnDeviceSelfAnalyzer(deviceRemover),
+  };
   return ml;
+}
+
+const NPU_KEY = 'prefer_npu_v1';
+let preferNpu = false;
+
+/** Whether the NPU (NNAPI / Core ML / WebNN) is tried first; persisted. */
+export async function setPreferNpu(store: KeyValueStore, value: boolean) {
+  preferNpu = value;
+  await store.set(NPU_KEY, value ? '1' : '0');
+  mlServices().router.plan();
 }
 
 /**
@@ -117,7 +139,23 @@ export function createAppServices(db: SQLiteDatabase, apiUrl = configuredApiUrl(
       })
     : new DisabledCloudSync();
 
-  const { selfAnalyzer, ...mlRest } = mlServices();
+  planInputs = () => ({ cloudAvailable: api !== null, cloudConsent: consent.allows('cloud_processing'), preferNpu });
+  kv.get(NPU_KEY)
+    .then((v) => {
+      preferNpu = v === '1';
+      mlServices().router.plan();
+    })
+    .catch(() => {});
+  consent.subscribe(() => mlServices().router.plan());
+
+  const { selfAnalyzer, router, deviceRemover, deviceEmbedder, models } = mlServices();
+  const deviceUsable = () => router.caps.runtimeAvailable;
+  const pipeline = new GarmentPipeline({
+    removeBackground: new RoutedBackgroundRemover(() => router.plan(), deviceRemover, api && new CloudBackgroundRemover(api), deviceUsable),
+    embedder: new RoutedEmbedder(() => router.plan(), deviceEmbedder, api && new CloudEmbedder(api), deviceUsable),
+    extractPalette,
+    assessQuality,
+  });
   const selfImages = new FileGarmentImageStore(new Directory(Paths.document, 'me'));
   const selfPhotos = new SqliteSelfPhotoRepository(db, selfImages);
   const eraser = new DeviceEraser(db, [images, selfImages], [() => profiles.clear(), () => consent.clear(), () => identity.reset()]);
@@ -133,6 +171,7 @@ export function createAppServices(db: SQLiteDatabase, apiUrl = configuredApiUrl(
     settings: kv,
     eraser,
     self: { photos: selfPhotos, analyzer: selfAnalyzer },
-    ...mlRest,
+    pipeline,
+    models: { ...models, router },
   };
 }

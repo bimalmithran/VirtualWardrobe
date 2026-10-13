@@ -64,3 +64,32 @@ export function encodePNG(img: RGBAImage): Uint8Array {
     image.dispose();
   }
 }
+
+/**
+ * Downscales an encoded image (aspect kept) and re-encodes it as WebP, which keeps alpha
+ * at a fraction of PNG's size: a 1024 px cutout PNG of 1-3 MB becomes a ~20-60 KB thumbnail.
+ */
+export function makeThumbnail(encoded: Uint8Array, maxSide: number, quality = 82): Uint8Array {
+  const image = Skia.Image.MakeImageFromEncoded(Skia.Data.fromBytes(encoded));
+  if (!image) throw new Error('Could not decode image');
+  try {
+    const scale = Math.min(1, maxSide / Math.max(image.width(), image.height()));
+    const w = Math.max(1, Math.round(image.width() * scale));
+    const h = Math.max(1, Math.round(image.height() * scale));
+    const surface = Skia.Surface.Make(w, h);
+    if (!surface) throw new Error('Could not allocate a thumbnail surface');
+    const paint = Skia.Paint();
+    paint.setAntiAlias(true);
+    surface.getCanvas().drawImageRect(image, Skia.XYWHRect(0, 0, image.width(), image.height()), Skia.XYWHRect(0, 0, w, h), paint);
+    surface.flush();
+    const snapshot = surface.makeImageSnapshot();
+    try {
+      return snapshot.encodeToBytes(ImageFormat.WEBP, quality);
+    } finally {
+      snapshot.dispose();
+      surface.dispose();
+    }
+  } finally {
+    image.dispose();
+  }
+}

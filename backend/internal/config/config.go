@@ -18,6 +18,14 @@ type Config struct {
 	// AuthRequired turns on per-install device tokens for /api. Only switch it off for
 	// local experiments: without it any client can act as any user id.
 	AuthRequired bool // AUTH_REQUIRED, default true
+	// Cloud vision for low-end phones. Needs a binary built with -tags onnx (the Docker
+	// image is) and the ONNX Runtime shared library.
+	VisionEnabled   bool   // VISION_ENABLED, default true
+	VisionModelsDir string // VISION_MODELS_DIR, default ./models
+	ORTLibPath      string // ORT_LIB_PATH, default /usr/local/lib/libonnxruntime.so
+	// VisionSegmentation picks the cutout model: "rmbg-1.4" (non-commercial licence, matches
+	// the app's default) or "isnet" (Apache-2.0).
+	VisionSegmentation string // VISION_SEGMENTATION, default rmbg-1.4
 }
 
 // FromEnv reads Config using getenv (os.Getenv in production, a map in tests).
@@ -31,6 +39,14 @@ func FromEnv(getenv func(string) string) (Config, error) {
 		LLMCeilingUSD: floatOr(getenv("LLM_COST_CEILING_USD"), 0.01),
 		LLMEMAAlpha:   floatOr(getenv("LLM_EMA_ALPHA"), 0.3),
 		AuthRequired:  boolOr(getenv("AUTH_REQUIRED"), true),
+
+		VisionEnabled:      boolOr(getenv("VISION_ENABLED"), true),
+		VisionModelsDir:    or(getenv("VISION_MODELS_DIR"), "./models"),
+		ORTLibPath:         or(getenv("ORT_LIB_PATH"), "/usr/local/lib/libonnxruntime.so"),
+		VisionSegmentation: or(getenv("VISION_SEGMENTATION"), "rmbg-1.4"),
+	}
+	if c.VisionSegmentation != "rmbg-1.4" && c.VisionSegmentation != "isnet" {
+		return Config{}, errors.New("VISION_SEGMENTATION must be rmbg-1.4 or isnet")
 	}
 	if c.DatabaseURL == "" {
 		return Config{}, errors.New("DATABASE_URL is required")

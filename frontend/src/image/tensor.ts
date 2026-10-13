@@ -77,3 +77,25 @@ export function cropResizeOnBackground(
   }
   return { width: dw, height: dh, data: out };
 }
+
+/**
+ * Fits img, aspect kept, inside a size×size square on `bg` (box-filtered). Garments are
+ * rarely square: a centre crop would cut a kurta's hem or a shirt's sleeves.
+ */
+export function letterboxOnBackground(img: RGBAImage, size: number, bg: [number, number, number] = [255, 255, 255]): RGBAImage {
+  const scale = size / Math.max(img.width, img.height);
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+  const inner = cropResizeOnBackground(img, { x: 0, y: 0, w: img.width, h: img.height }, w, h, bg);
+  const out = new Uint8Array(size * size * 4);
+  for (let i = 0; i < size * size; i++) {
+    out[i * 4] = bg[0];
+    out[i * 4 + 1] = bg[1];
+    out[i * 4 + 2] = bg[2];
+    out[i * 4 + 3] = 255;
+  }
+  const ox = Math.floor((size - w) / 2);
+  const oy = Math.floor((size - h) / 2);
+  for (let y = 0; y < h; y++) out.set(inner.data.subarray(y * w * 4, (y + 1) * w * 4), ((oy + y) * size + ox) * 4);
+  return { width: size, height: size, data: out };
+}

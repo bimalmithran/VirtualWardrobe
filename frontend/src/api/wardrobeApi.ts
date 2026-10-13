@@ -1,12 +1,13 @@
 import type { DigitalTwin } from '../domain/types';
 import type { ConsentRecord, PrivacyRemote } from '../privacy/consent';
+import type { VisionRemote } from '../vision/cloudVision';
 import { ApiError, type HttpClient } from './httpClient';
 import type { InstallationIdProvider } from './installationId';
 
 export interface UploadableGarment {
   clientItemId: string;
   categorySlug: string | null;
-  pngBase64: string;
+  imageBase64: string;
   colorHex: string;
   embedding: Float32Array;
   metadata: Record<string, unknown>;
@@ -52,7 +53,7 @@ export interface SimilarityRemote {
 }
 
 /** Maps app types to the Go API's JSON contract. */
-export class WardrobeApi implements ProfileRemote, GarmentRemote, OutfitRemote, SimilarityRemote, PrivacyRemote {
+export class WardrobeApi implements ProfileRemote, GarmentRemote, OutfitRemote, SimilarityRemote, PrivacyRemote, VisionRemote {
   constructor(
     private readonly http: HttpClient,
     private readonly installation: InstallationIdProvider,
@@ -90,6 +91,18 @@ export class WardrobeApi implements ProfileRemote, GarmentRemote, OutfitRemote, 
     }
   }
 
+  async segment(imageBase64: string) {
+    const r = await this.http.postJson<{ mask_png_base64: string; width: number; height: number }>('/api/vision/segment', {
+      image_base64: imageBase64,
+    });
+    return { maskPngBase64: r.mask_png_base64, width: r.width, height: r.height };
+  }
+
+  async embed(imageBase64: string) {
+    const r = await this.http.postJson<{ embedding: number[] }>('/api/vision/embed', { image_base64: imageBase64 });
+    return Float32Array.from(r.embedding);
+  }
+
   exportCloudData() {
     return this.http.getJson<unknown>('/api/users/me/export');
   }
@@ -99,7 +112,7 @@ export class WardrobeApi implements ProfileRemote, GarmentRemote, OutfitRemote, 
       user_id: await this.installation.get(),
       client_item_id: g.clientItemId,
       category_slug: g.categorySlug ?? '',
-      image_base64: g.pngBase64,
+      image_base64: g.imageBase64,
       color_hex: g.colorHex,
       embedding: Array.from(g.embedding),
       metadata: g.metadata,

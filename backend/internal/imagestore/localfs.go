@@ -25,17 +25,25 @@ func NewLocalFS(dir, urlPrefix string) (*LocalFS, error) {
 	return &LocalFS{dir: dir, urlPrefix: urlPrefix}, nil
 }
 
-// SavePNG writes <dir>/<user>/<item>.png atomically and returns its server-relative URL.
-// Both path parts are validated domain ids, so they cannot escape dir.
-func (s *LocalFS) SavePNG(_ context.Context, user domain.UserID, item domain.ClientItemID, png []byte) (string, error) {
+// SaveImage writes <dir>/<user>/<item>.<ext> atomically and returns its server-relative
+// URL, removing the garment's image in any other format. Both path parts are validated
+// domain ids, so they cannot escape dir.
+func (s *LocalFS) SaveImage(ctx context.Context, user domain.UserID, item domain.ClientItemID, png []byte) (string, error) {
 	if !user.Valid() || !item.Valid() {
 		return "", &domain.ValidationError{Field: "image", Reason: "has an invalid storage key"}
+	}
+	ext := domain.ImageExt(png)
+	if ext == "" {
+		return "", &domain.ValidationError{Field: "image", Reason: "must be a PNG, WebP or JPEG"}
+	}
+	if err := s.RemoveImage(ctx, user, item); err != nil {
+		return "", err
 	}
 	dir := filepath.Join(s.dir, string(user))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
 	}
-	name := string(item) + ".png"
+	name := string(item) + ext
 	tmp, err := os.CreateTemp(dir, name+".*.tmp")
 	if err != nil {
 		return "", err
@@ -56,16 +64,18 @@ func (s *LocalFS) SavePNG(_ context.Context, user domain.UserID, item domain.Cli
 	return path.Join(s.urlPrefix, string(user), name), nil
 }
 
-// RemovePNG deletes <dir>/<user>/<item>.png. A file that is already gone is fine.
-func (s *LocalFS) RemovePNG(_ context.Context, user domain.UserID, item domain.ClientItemID) error {
+// RemoveImage deletes <dir>/<user>/<item>.* in every stored format. Already gone is fine.
+func (s *LocalFS) RemoveImage(_ context.Context, user domain.UserID, item domain.ClientItemID) error {
 	if !user.Valid() || !item.Valid() {
 		return &domain.ValidationError{Field: "image", Reason: "has an invalid storage key"}
 	}
-	err := os.Remove(filepath.Join(s.dir, string(user), string(item)+".png"))
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
+	for _, ext := range domain.ImageExts {
+		err := os.Remove(filepath.Join(s.dir, string(user), string(item)+ext))
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
 	}
-	return err
+	return nil
 }
 
 // Handler serves stored images under urlPrefix, without directory listings.

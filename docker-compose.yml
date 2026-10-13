@@ -32,8 +32,12 @@ services:
       # Leave empty to build image URLs from the Host header the phone used.
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
       LLM_COST_CEILING_USD: ${LLM_COST_CEILING_USD:-0.01}
+      # Cloud vision for low-end phones. Models (~56 MB) download into the volume on first boot.
+      VISION_ENABLED: ${VISION_ENABLED:-true}
+      VISION_SEGMENTATION: ${VISION_SEGMENTATION:-rmbg-1.4}
     volumes:
       - uploads:/data/uploads
+      - models:/data/models
     ports:
       - "8080:8080" # all interfaces, so a phone on the same Wi-Fi can reach it
     depends_on:
@@ -57,5 +61,6 @@ services:
 volumes:
   pgdata:
   uploads:
+  models:
   gradle-cache:
   npm-cache:

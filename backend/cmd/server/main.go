@@ -20,6 +20,7 @@ import (
 	"github.com/bimalmithran/virtualwardrobe/backend/internal/imagestore"
 	"github.com/bimalmithran/virtualwardrobe/backend/internal/llmgateway"
 	"github.com/bimalmithran/virtualwardrobe/backend/internal/postgres"
+	"github.com/bimalmithran/virtualwardrobe/backend/internal/vision"
 	"github.com/bimalmithran/virtualwardrobe/backend/internal/wardrobe"
 )
 
@@ -70,12 +71,21 @@ func run(log *slog.Logger) error {
 		return err
 	}
 
+	privacy := wardrobe.NewPrivacy(users, items, outfitRepo, images)
+	cloudVision := wardrobe.NewCloudVision(privacy)
+	if cfg.VisionEnabled && vision.Available {
+		go loadVision(ctx, log, cfg, cloudVision)
+	} else {
+		log.Info("cloud vision disabled", "built_with_onnx", vision.Available, "VISION_ENABLED", cfg.VisionEnabled)
+	}
+
 	srv := &http.Server{
 		Addr: cfg.Addr,
 		Handler: httpapi.NewRouter(httpapi.Deps{
 			Health:        pool,
 			Profiles:      wardrobe.NewProfiles(users),
-			Privacy:       wardrobe.NewPrivacy(users, items, outfitRepo, images),
+			Privacy:       privacy,
+			Vision:        cloudVision,
 			Devices:       devices,
 			Items:         closet,
 			Deleter:       closet,
@@ -93,6 +103,30 @@ func run(log *slog.Logger) error {
 		WriteTimeout:      60 * time.Second,
 	}
 	return serve(ctx, log, srv)
+}
+
+// loadVision downloads (first boot only) and loads the models without delaying startup;
+// /api/vision answers 503 until it finishes.
+func loadVision(ctx context.Context, log *slog.Logger, cfg config.Config, cv *wardrobe.CloudVision) {
+	seg := vision.RMBG14
+	if cfg.VisionSegmentation == "isnet" {
+		seg = vision.ISNet
+	} else {
+		log.Warn("cloud vision uses RMBG-1.4, which is licensed for non-commercial use only; set VISION_SEGMENTATION=isnet for commercial deployments")
+	}
+	segPath, err := vision.Ensure(ctx, cfg.VisionModelsDir, seg)
+	if err == nil {
+		var embPath string
+		if embPath, err = vision.Ensure(ctx, cfg.VisionModelsDir, vision.MobileCLIPS0); err == nil {
+			var m *vision.ONNX
+			if m, err = vision.NewONNX(cfg.ORTLibPath, segPath, embPath); err == nil {
+				cv.SetModels(m)
+				log.Info("cloud vision ready", "segmentation", seg.Name)
+				return
+			}
+		}
+	}
+	log.Error("cloud vision unavailable", "err", err)
 }
 
 func serve(ctx context.Context, log *slog.Logger, srv *http.Server) error {

@@ -21,7 +21,7 @@ func TestSaveAndServe(t *testing.T) {
 		t.Fatal(err)
 	}
 	png := []byte("\x89PNG\r\n\x1a\nbody")
-	url, err := s.SavePNG(context.Background(), user, "m1abc", png)
+	url, err := s.SaveImage(context.Background(), user, "m1abc", png)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestSaveAndServe(t *testing.T) {
 
 func TestRejectsTraversalKeys(t *testing.T) {
 	s, _ := NewLocalFS(t.TempDir(), "/uploads")
-	if _, err := s.SavePNG(context.Background(), user, "../../etc/passwd", []byte("x")); !domain.IsValidation(err) {
+	if _, err := s.SaveImage(context.Background(), user, "../../etc/passwd", []byte("x")); !domain.IsValidation(err) {
 		t.Fatalf("err = %v, want validation error", err)
 	}
 }

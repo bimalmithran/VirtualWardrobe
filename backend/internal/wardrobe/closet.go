@@ -15,8 +15,6 @@ const (
 	MaxSearchLimit     = 50
 )
 
-var pngMagic = []byte("\x89PNG\r\n\x1a\n")
-
 // AddItemInput is what a client sends: exactly one of ImageBase64 (a PNG, optionally
 // a data: URL) or ImageURL.
 type AddItemInput struct {
@@ -67,11 +65,11 @@ func (s *Closet) AddItem(ctx context.Context, in AddItemInput) (domain.Item, boo
 	}
 
 	if in.ImageBase64 != "" {
-		png, err := DecodePNG(in.ImageBase64)
+		png, err := DecodeImage(in.ImageBase64)
 		if err != nil {
 			return domain.Item{}, false, err
 		}
-		if item.ImageURL, err = s.images.SavePNG(ctx, item.UserID, item.ClientItemID, png); err != nil {
+		if item.ImageURL, err = s.images.SaveImage(ctx, item.UserID, item.ClientItemID, png); err != nil {
 			return domain.Item{}, false, fmt.Errorf("store image: %w", err)
 		}
 	}
@@ -114,15 +112,16 @@ func (s *Closet) DeleteItem(ctx context.Context, userID string, clientItemID str
 	}
 	// Only cutouts this server stored are ours to delete; image_url uploads point elsewhere.
 	if !domain.IsAbsoluteURL(url) {
-		if err := s.images.RemovePNG(ctx, user, item); err != nil {
+		if err := s.images.RemoveImage(ctx, user, item); err != nil {
 			return fmt.Errorf("remove image: %w", err)
 		}
 	}
 	return nil
 }
 
-// DecodePNG accepts plain base64 or a data: URL and checks the PNG signature.
-func DecodePNG(b64 string) ([]byte, error) {
+// DecodeImage accepts plain base64 or a data: URL holding a PNG cutout, or the WebP/JPEG
+// thumbnail the app uploads by default, and checks the file signature.
+func DecodeImage(b64 string) ([]byte, error) {
 	if i := strings.Index(b64, ";base64,"); strings.HasPrefix(b64, "data:") && i > 0 {
 		b64 = b64[i+len(";base64,"):]
 	}
@@ -133,8 +132,8 @@ func DecodePNG(b64 string) ([]byte, error) {
 	if err != nil {
 		return nil, &domain.ValidationError{Field: "image_base64", Reason: "is not valid base64"}
 	}
-	if len(data) < len(pngMagic) || string(data[:len(pngMagic)]) != string(pngMagic) {
-		return nil, &domain.ValidationError{Field: "image_base64", Reason: "must be a PNG"}
+	if domain.ImageExt(data) == "" {
+		return nil, &domain.ValidationError{Field: "image_base64", Reason: "must be a PNG, WebP or JPEG"}
 	}
 	return data, nil
 }

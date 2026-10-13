@@ -1,6 +1,6 @@
 import { EMBEDDING_DIM, MODELS, type ModelSpec } from '../config/models';
 import type { RGBAImage } from '../image/pixels';
-import { cropResizeOnBackground, rgbaToCHW } from '../image/tensor';
+import { letterboxOnBackground, rgbaToCHW } from '../image/tensor';
 import type { ModelRunner } from '../ml/modelRunner';
 
 export interface GarmentEmbedder {
@@ -9,9 +9,9 @@ export interface GarmentEmbedder {
 }
 
 /**
- * MobileCLIP-S0 image tower. Mirrors the HF CLIPFeatureExtractor config: resize the
- * shortest edge to 256, centre-crop 256x256, rescale to 0..1, no mean/std.
- * The cutout is flattened onto white so the background can't leak into the vector.
+ * MobileCLIP-S0 image tower: 256x256 input, rescaled to 0..1, no mean/std. The cutout is
+ * letterboxed (aspect kept) onto white rather than centre-cropped, so a tall kurta keeps
+ * its hem and a wide shirt its sleeves. The server's cloud embedder does exactly the same.
  */
 export class MobileClipEmbedder implements GarmentEmbedder {
   constructor(
@@ -21,14 +21,7 @@ export class MobileClipEmbedder implements GarmentEmbedder {
 
   async embed(cutout: RGBAImage): Promise<Float32Array> {
     const size = this.spec.inputSize;
-    const side = Math.min(cutout.width, cutout.height);
-    const crop = {
-      x: Math.floor((cutout.width - side) / 2),
-      y: Math.floor((cutout.height - side) / 2),
-      w: side,
-      h: side,
-    };
-    const input = rgbaToCHW(cropResizeOnBackground(cutout, crop, size, size), this.spec.mean, this.spec.std);
+    const input = rgbaToCHW(letterboxOnBackground(cutout, size), this.spec.mean, this.spec.std);
     const { data } = await this.runner.run(this.spec.key, {
       input,
       dims: [1, 3, size, size],

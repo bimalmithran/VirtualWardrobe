@@ -1,9 +1,11 @@
 import { WORKING_MAX_SIDE } from '../config/models';
-import type { PaletteEntry } from '../domain/types';
+import type { GarmentShape, PaletteEntry, Pattern } from '../domain/types';
 import { encodePNG, loadRGBAFit, type RGBAImage } from '../image/pixels';
 import type { BackgroundRemover } from './backgroundRemoval';
 import type { PaletteExtractor } from './colorExtraction';
 import type { GarmentEmbedder } from './embedding';
+import { measureShape, tightCrop } from './garmentShape';
+import { detectPattern } from './pattern';
 import type { QualityReport } from './junkFilter';
 
 export interface Photo {
@@ -19,6 +21,8 @@ export interface ProcessedGarment {
   colorHex: string;
   palette: PaletteEntry[];
   embedding: Float32Array | null;
+  pattern: Pattern;
+  shape: GarmentShape | null;
   coverage: number;
   timingsMs: Partial<Record<Stage, number>>;
 }
@@ -73,12 +77,17 @@ export class GarmentPipeline {
       );
     }
 
-    const palette = await timed('color', () => this.stages.extractPalette(cutout));
+    // Store and analyse only the garment's box: smaller PNGs, bigger thumbnails.
+    const garment = tightCrop(cutout);
+    const palette = await timed('color', () => this.stages.extractPalette(garment));
     if (palette.length === 0) throw new Error('Could not extract a colour from the garment.');
+    const significant = palette.filter((p) => p.share >= 0.12).length;
+    const { pattern } = detectPattern(garment, significant);
+    const shape = measureShape(garment);
 
-    const embedding = opts.embed ? await timed('embedding', () => this.stages.embedder.embed(cutout)) : null;
+    const embedding = opts.embed ? await timed('embedding', () => this.stages.embedder.embed(garment)) : null;
 
-    return { png: encodePNG(cutout), colorHex: palette[0].hex, palette, embedding, coverage, timingsMs };
+    return { png: encodePNG(garment), colorHex: palette[0].hex, palette, embedding, pattern, shape, coverage, timingsMs };
   }
 }
 

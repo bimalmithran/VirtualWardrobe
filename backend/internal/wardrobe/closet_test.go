@@ -33,12 +33,12 @@ func (f *fakeItems) SearchSimilar(_ context.Context, q SearchQuery) ([]domain.Ma
 
 type fakeImages struct{ saved, removed int }
 
-func (f *fakeImages) RemovePNG(context.Context, domain.UserID, domain.ClientItemID) error {
+func (f *fakeImages) RemoveImage(context.Context, domain.UserID, domain.ClientItemID) error {
 	f.removed++
 	return nil
 }
 
-func (f *fakeImages) SavePNG(_ context.Context, u domain.UserID, i domain.ClientItemID, _ []byte) (string, error) {
+func (f *fakeImages) SaveImage(_ context.Context, u domain.UserID, i domain.ClientItemID, _ []byte) (string, error) {
 	f.saved++
 	return "/uploads/" + string(u) + "/" + string(i) + ".png", nil
 }

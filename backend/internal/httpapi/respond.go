@@ -10,6 +10,7 @@ import (
 
 	"github.com/bimalmithran/virtualwardrobe/backend/internal/domain"
 	"github.com/bimalmithran/virtualwardrobe/backend/internal/llmgateway"
+	"github.com/bimalmithran/virtualwardrobe/backend/internal/vision"
 )
 
 const maxBodyBytes = 12 << 20 // 8 MB image + base64 overhead + 512 floats
@@ -68,6 +69,8 @@ func (e errorWriter) write(w http.ResponseWriter, err error) {
 		writeErrorCode(w, http.StatusForbidden, "consent_required", err.Error())
 	case errors.Is(err, domain.ErrQuotaExceeded):
 		writeErrorCode(w, http.StatusPaymentRequired, "quota_exceeded", err.Error())
+	case errors.Is(err, vision.ErrUnavailable):
+		writeErrorCode(w, http.StatusServiceUnavailable, "vision_unavailable", err.Error())
 	case errors.Is(err, llmgateway.ErrNoEligibleModel):
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
 	default:

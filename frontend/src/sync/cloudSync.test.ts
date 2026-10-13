@@ -95,7 +95,7 @@ function setup(
         deletions.splice(deletions.findIndex((x) => x.kind === d.kind && x.id === d.id), 1);
       },
     },
-    images: { readBase64: async (uri) => `b64:${uri}` },
+    images: { readBase64: async (uri) => `b64:${uri}`, readUploadBase64: async (uri) => `b64:${uri}` },
     profiles: { load: async () => (opts.profile === undefined ? profile : opts.profile) },
     profileSync: {
       syncedVersion: async () => syncedVersion,
@@ -128,7 +128,7 @@ test('uploads the profile first, then every pending garment', async () => {
   expect(s.savedProfiles).toEqual([profile]);
   expect(s.synced()).toBe(42);
   expect(s.uploaded.map((u) => u.clientItemId)).toEqual(['a', 'b']);
-  expect(s.uploaded[0].pngBase64).toBe('b64:file:///closet/a.png');
+  expect(s.uploaded[0].imageBase64).toBe('b64:file:///closet/a.png');
   expect(s.pending).toHaveLength(0);
 });
 

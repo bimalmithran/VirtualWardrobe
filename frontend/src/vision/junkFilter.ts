@@ -4,7 +4,12 @@ export interface QualityReport {
   brightness: number; // mean luma, 0..255
   contrast: number; // luma std-dev
   sharpness: number; // variance of the Laplacian
+  /** Share of pixels crushed to black / blown to white (histogram tails). */
+  shadowClip: number;
+  highlightClip: number;
   issues: string[];
+  /** The most important problem in a few words, for live on-screen feedback; null when fine. */
+  headline: string | null;
 }
 
 // Tuned for a ~256 px analysis image. Sharp phone photos of fabric typically score
@@ -13,6 +18,11 @@ export const MIN_BRIGHTNESS = 45;
 export const MAX_BRIGHTNESS = 235;
 const MIN_CONTRAST = 18;
 const MIN_SHARPNESS = 40;
+/** Histogram tails: luma <= 12 is crushed shadow, >= 248 is blown highlight. */
+const SHADOW = 12;
+const HIGHLIGHT = 248;
+const MAX_SHADOW_CLIP = 0.35;
+const MAX_HIGHLIGHT_CLIP = 0.2;
 const ANALYSIS_SIDE = 256;
 
 /** Cheap pre-flight check so we don't spend seconds of NPU/CPU time on a junk photo. */
@@ -24,8 +34,16 @@ export function assessQuality(img: RGBAImage): QualityReport {
   const brightness = sum / gray.length;
 
   let sq = 0;
-  for (let i = 0; i < gray.length; i++) sq += (gray[i] - brightness) ** 2;
+  let dark = 0;
+  let blown = 0;
+  for (let i = 0; i < gray.length; i++) {
+    sq += (gray[i] - brightness) ** 2;
+    if (gray[i] <= SHADOW) dark++;
+    else if (gray[i] >= HIGHLIGHT) blown++;
+  }
   const contrast = Math.sqrt(sq / gray.length);
+  const shadowClip = dark / gray.length;
+  const highlightClip = blown / gray.length;
 
   // 4-neighbour Laplacian; its variance collapses when edges are smeared.
   let lapSum = 0, lapSq = 0, n = 0;
@@ -41,13 +59,25 @@ export function assessQuality(img: RGBAImage): QualityReport {
   const lapMean = lapSum / n;
   const sharpness = lapSq / n - lapMean * lapMean;
 
-  const issues: string[] = [];
-  if (brightness < MIN_BRIGHTNESS) issues.push('Photo is too dark — add light or move near a window.');
-  if (brightness > MAX_BRIGHTNESS) issues.push('Photo is overexposed — avoid direct light on the garment.');
-  if (contrast < MIN_CONTRAST) issues.push('Very low contrast — place the garment on a plain background that differs from its colour.');
-  if (sharpness < MIN_SHARPNESS) issues.push('Photo looks blurry — hold the phone steady and tap to focus.');
+  // Ordered by how badly each spoils the cutout and colour; the first becomes the headline.
+  const found: [string, string][] = [];
+  if (sharpness < MIN_SHARPNESS) found.push(['Too blurry, hold still', 'Photo looks blurry — hold the phone steady and tap to focus.']);
+  if (brightness < MIN_BRIGHTNESS || shadowClip > MAX_SHADOW_CLIP)
+    found.push(['Needs more light', 'Photo is too dark — add light or move near a window.']);
+  if (brightness > MAX_BRIGHTNESS || highlightClip > MAX_HIGHLIGHT_CLIP)
+    found.push(['Too bright, avoid direct light', 'Photo is overexposed — parts are pure white. Avoid direct light on the garment.']);
+  if (contrast < MIN_CONTRAST)
+    found.push(['Use a plain, contrasting background', 'Very low contrast — place the garment on a plain background that differs from its colour.']);
 
-  return { brightness, contrast, sharpness, issues };
+  return {
+    brightness,
+    contrast,
+    sharpness,
+    shadowClip,
+    highlightClip,
+    issues: found.map(([, long]) => long),
+    headline: found[0]?.[0] ?? null,
+  };
 }
 
 function toSmallGray(img: RGBAImage, maxSide: number) {

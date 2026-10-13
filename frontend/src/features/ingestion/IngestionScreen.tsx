@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraCapture } from '../../components/CameraCapture';
 import { ModelSetup } from '../../components/ModelSetup';
 import { useModelStatuses } from '../../ml/modelStatus';
+import { deviceModels, useExecutionPlan } from '../../ml/useExecutionPlan';
 import { useServices } from '../../services/ServicesProvider';
 import { ui } from '../../theme';
 import { IngestionResult } from './components/IngestionResult';
@@ -26,6 +27,7 @@ export function IngestionScreen({
 }) {
   const { pipeline, models, closet, sync } = useServices();
   const statuses = useModelStatuses(models.status);
+  const plan = useExecutionPlan(models.router);
   const mode = useIngestionMode(modeKey, garmentId);
   const { state, capture, processAnyway, reset } = useIngestion(mode, pipeline);
   const insets = useSafeAreaInsets();
@@ -39,8 +41,10 @@ export function IngestionScreen({
     );
   };
 
-  const modelsReady = mode.requiredModels.every((k) => statuses[k].state !== 'downloading' && models.files.isDownloaded(k));
-  if (!modelsReady) return page(<ModelSetup required={mode.requiredModels} />);
+  // Models the plan sends to the cloud need no download on this phone.
+  const needed = deviceModels(mode.requiredModels, plan);
+  const modelsReady = needed.every((k) => statuses[k].state !== 'downloading' && models.files.isDownloaded(k));
+  if (!modelsReady) return page(<ModelSetup required={needed} />);
 
   switch (state.kind) {
     case 'capture':

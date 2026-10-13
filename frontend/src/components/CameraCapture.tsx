@@ -4,6 +4,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useIsFocused } from 'expo-router';
 
+import { useLiveQuality } from '../features/ingestion/useLiveQuality';
 import type { Photo } from '../vision/pipeline';
 import { colors, ui } from '../theme';
 import { Button } from './Button';
@@ -13,9 +14,11 @@ interface Props {
   onCapture: (photo: Photo) => void;
   /** 'front' for selfies. Either way the user can flip. */
   initialFacing?: 'front' | 'back';
+  /** Live blur/exposure feedback before the shutter is pressed. */
+  liveQuality?: boolean;
 }
 
-export function CameraCapture({ hint, onCapture, initialFacing = 'back' }: Props) {
+export function CameraCapture({ hint, onCapture, initialFacing = 'back', liveQuality = true }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const camera = useRef<CameraView>(null);
   const [facing, setFacing] = useState(initialFacing);
@@ -23,6 +26,7 @@ export function CameraCapture({ hint, onCapture, initialFacing = 'back' }: Props
   const [capturing, setCapturing] = useState(false);
   // Tabs stay mounted after first visit; only the focused tab may hold the camera.
   const focused = useIsFocused();
+  const live = useLiveQuality(camera, liveQuality && focused && ready && !!permission?.granted, capturing);
 
   const capture = async () => {
     if (!camera.current || capturing) return;
@@ -60,11 +64,26 @@ export function CameraCapture({ hint, onCapture, initialFacing = 'back' }: Props
   return (
     <View style={styles.fill}>
       {focused && (
-        <CameraView ref={camera} style={StyleSheet.absoluteFill} facing={facing} onCameraReady={() => setReady(true)} />
+        <CameraView
+          ref={camera}
+          style={StyleSheet.absoluteFill}
+          facing={facing}
+          animateShutter={false}
+          onCameraReady={() => setReady(true)}
+        />
       )}
       <View style={styles.hint}>
         <Text style={styles.hintText}>{hint}</Text>
       </View>
+      {liveQuality && ready && live.state !== 'checking' && (
+        <View
+          style={[styles.live, live.state === 'ok' ? styles.liveOk : styles.liveIssue]}
+          accessibilityLiveRegion="polite"
+          accessibilityLabel={live.state === 'ok' ? 'Photo quality looks good' : live.headline}
+        >
+          <Text style={styles.liveText}>{live.state === 'ok' ? '✓ Looks good' : `⚠ ${live.headline}`}</Text>
+        </View>
+      )}
       <View style={styles.controls}>
         <Pressable onPress={pick} style={styles.sideButton} accessibilityLabel="Choose from gallery">
           <Text style={styles.sideText}>Gallery</Text>
@@ -95,6 +114,10 @@ const styles = StyleSheet.create({
   permissionText: { textAlign: 'center', marginBottom: 16 },
   hint: { position: 'absolute', top: 16, left: 16, right: 16, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 12, padding: 10 },
   hintText: { color: '#fff', textAlign: 'center', fontSize: 14 },
+  live: { position: 'absolute', bottom: 124, alignSelf: 'center', borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8 },
+  liveOk: { backgroundColor: 'rgba(21,128,61,0.85)' },
+  liveIssue: { backgroundColor: 'rgba(180,83,9,0.9)' },
+  liveText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   controls: { position: 'absolute', bottom: 28, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly' },
   shutter: { width: 76, height: 76, borderRadius: 38, borderWidth: 4, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   shutterInner: { width: 58, height: 58, borderRadius: 29, backgroundColor: '#fff' },

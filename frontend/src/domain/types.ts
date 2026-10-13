@@ -34,6 +34,20 @@ export interface DigitalTwin {
 
 export type DigitalTwinInput = Omit<DigitalTwin, 'updatedAt'>;
 
+export type Pattern = 'solid' | 'striped' | 'checked' | 'printed' | 'textured';
+
+/** Silhouette geometry read from the cutout's mask (see vision/garmentShape.ts). */
+export interface GarmentShape {
+  /** Height / width of the garment's bounding box. */
+  aspect: number;
+  /** Width near the hem / width across the upper body; > 1 flares, < 1 tapers. */
+  taper: number;
+  /** 0 = straight sides, higher = narrower at the waist than above or below. */
+  waistDefinition: number;
+  /** Share of the bounding box the garment covers. */
+  fill: number;
+}
+
 export interface PaletteEntry {
   hex: string;
   share: number; // fraction of garment pixels in this cluster
