@@ -1,28 +1,34 @@
 import { Image, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
-import type { GarmentPhoto } from '../domain/types';
 import { colors, ui } from '../theme';
 
-interface Props {
-  photos: GarmentPhoto[];
-  selectedUri: string;
-  onSelect: (photo: GarmentPhoto) => void;
+interface StripPhoto {
+  id: string;
+  imageUri: string;
+}
+
+interface Props<T extends StripPhoto> {
+  photos: T[];
+  selectedUri?: string;
+  onSelect?: (photo: T) => void;
   /** Long-press handler; omitted when the photo can't be removed (e.g. the only one). */
-  onRemove?: (photo: GarmentPhoto) => void;
-  onAdd: () => void;
+  onRemove?: (photo: T) => void;
+  /** Omitted to hide the add tile. */
+  onAdd?: () => void;
+  addLabel?: string;
 }
 
 const SIZE = 64;
 
-/** Thumbnails of a garment's photos, followed by an "add photo" tile. */
-export function PhotoStrip({ photos, selectedUri, onSelect, onRemove, onAdd }: Props) {
+/** Thumbnails of a set of photos, followed by an "add photo" tile. */
+export function PhotoStrip<T extends StripPhoto>({ photos, selectedUri, onSelect, onRemove, onAdd, addLabel = 'Add a photo of this garment' }: Props<T>) {
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
       {photos.map((p, i) => (
         <Pressable
           key={p.id}
-          onPress={() => onSelect(p)}
+          onPress={onSelect ? () => onSelect(p) : undefined}
           onLongPress={onRemove ? () => onRemove(p) : undefined}
           accessibilityLabel={`Photo ${i + 1} of ${photos.length}`}
           style={[ui.checker, styles.thumb, p.imageUri === selectedUri && styles.selected]}
@@ -30,10 +36,12 @@ export function PhotoStrip({ photos, selectedUri, onSelect, onRemove, onAdd }: P
           <Image source={{ uri: p.imageUri }} style={styles.image} resizeMode="contain" />
         </Pressable>
       ))}
-      <Pressable onPress={onAdd} accessibilityRole="button" accessibilityLabel="Add a photo of this garment" style={[styles.thumb, styles.add]}>
-        <Ionicons name="camera-outline" size={22} color={colors.accent} />
-        <Text style={styles.addText}>Add photo</Text>
-      </Pressable>
+      {onAdd && (
+        <Pressable onPress={onAdd} accessibilityRole="button" accessibilityLabel={addLabel} style={[styles.thumb, styles.add]}>
+          <Ionicons name="camera-outline" size={22} color={colors.accent} />
+          <Text style={styles.addText}>Add photo</Text>
+        </Pressable>
+      )}
     </ScrollView>
   );
 }

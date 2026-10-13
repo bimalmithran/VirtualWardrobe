@@ -3,13 +3,14 @@ import { File, Paths } from 'expo-file-system';
 import { router } from 'expo-router';
 
 import type { ModelKey } from '../../config/models';
-import type { Garment, Undertone } from '../../domain/types';
+import type { Garment, Wearer } from '../../domain/types';
 import { useServices } from '../../services/ServicesProvider';
 import type { ClosetRepository, GarmentPhotos } from '../../storage/closetRepository';
 import type { CloudSync } from '../../sync/cloudSync';
 import type { ProcessedGarment, Stage } from '../../vision/pipeline';
-import { scoreUndertoneMatch, type MatchResult } from '../../vision/undertoneMatch';
-import { useProfile } from '../profile/ProfileContext';
+import { scoreForWearer } from '../../style/personalFit';
+import type { MatchResult } from '../../vision/undertoneMatch';
+import { useWearer } from '../self/SelfContext';
 
 export type StepKey = Stage | 'saving';
 
@@ -112,8 +113,8 @@ export function createAddPhotoMode(deps: { photos: GarmentPhotos; sync: CloudSyn
   };
 }
 
-/** In-store AR simulator: score the shirt against the Digital Twin, keep nothing. */
-export function createShopMode(deps: { undertone: Undertone | null }): IngestionMode {
+/** In-store AR simulator: score the shirt against the wearer's colouring, keep nothing. */
+export function createShopMode(deps: { wearer: Wearer }): IngestionMode {
   let preview: File | null = null;
   const discard = () => {
     if (preview?.exists) preview.delete();
@@ -133,7 +134,7 @@ export function createShopMode(deps: { undertone: Undertone | null }): Ingestion
       discard();
       preview = new File(Paths.cache, `shop-${Date.now()}.png`);
       preview.write(result.png);
-      const match = deps.undertone ? scoreUndertoneMatch(result.colorHex, deps.undertone) : null;
+      const match = scoreForWearer(result.colorHex, deps.wearer);
       return { previewUri: preview.uri, match, garment: null };
     },
     discard,
@@ -149,18 +150,18 @@ export type ModeKey = 'closet' | 'shop' | 'add-photo';
  */
 export function useIngestionMode(key: ModeKey, garmentId?: string): IngestionMode {
   const { closet, photos, sync } = useServices();
-  const undertone = useProfile().profile?.undertone ?? null;
+  const wearer = useWearer();
   const mode = useMemo(() => {
     switch (key) {
       case 'closet':
         return createClosetMode({ closet, sync });
       case 'shop':
-        return createShopMode({ undertone });
+        return createShopMode({ wearer });
       case 'add-photo':
         if (!garmentId) throw new Error('add-photo needs a garment id');
         return createAddPhotoMode({ photos, sync, garmentId });
     }
-  }, [key, garmentId, closet, photos, sync, undertone]);
+  }, [key, garmentId, closet, photos, sync, wearer]);
   useEffect(() => () => mode.discard(), [mode]);
   return mode;
 }

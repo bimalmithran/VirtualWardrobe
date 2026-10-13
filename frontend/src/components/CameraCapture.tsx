@@ -11,11 +11,14 @@ import { Button } from './Button';
 interface Props {
   hint: string;
   onCapture: (photo: Photo) => void;
+  /** 'front' for selfies. Either way the user can flip. */
+  initialFacing?: 'front' | 'back';
 }
 
-export function CameraCapture({ hint, onCapture }: Props) {
+export function CameraCapture({ hint, onCapture, initialFacing = 'back' }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const camera = useRef<CameraView>(null);
+  const [facing, setFacing] = useState(initialFacing);
   const [ready, setReady] = useState(false);
   const [capturing, setCapturing] = useState(false);
   // Tabs stay mounted after first visit; only the focused tab may hold the camera.
@@ -57,7 +60,7 @@ export function CameraCapture({ hint, onCapture }: Props) {
   return (
     <View style={styles.fill}>
       {focused && (
-        <CameraView ref={camera} style={StyleSheet.absoluteFill} facing="back" onCameraReady={() => setReady(true)} />
+        <CameraView ref={camera} style={StyleSheet.absoluteFill} facing={facing} onCameraReady={() => setReady(true)} />
       )}
       <View style={styles.hint}>
         <Text style={styles.hintText}>{hint}</Text>
@@ -74,7 +77,13 @@ export function CameraCapture({ hint, onCapture }: Props) {
         >
           <View style={styles.shutterInner} />
         </Pressable>
-        <View style={styles.sideButton} />
+        <Pressable
+          onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))}
+          style={styles.sideButton}
+          accessibilityLabel={facing === 'back' ? 'Switch to front camera' : 'Switch to back camera'}
+        >
+          <Text style={styles.sideText}>Flip</Text>
+        </Pressable>
       </View>
     </View>
   );

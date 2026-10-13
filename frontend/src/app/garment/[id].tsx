@@ -12,12 +12,12 @@ import { SimilarGrid } from '../../components/SimilarGrid';
 import { CATEGORIES, CATEGORY_LABELS, type Category, type Garment, type GarmentPhoto } from '../../domain/types';
 import { CloudSearchPanel } from '../../features/closet/CloudSearchPanel';
 import { openAddPhotos } from '../../features/ingestion/modes';
-import { useProfile } from '../../features/profile/ProfileContext';
+import { useWearer } from '../../features/self/SelfContext';
 import { relativeDay } from '../../lib/dates';
 import { useServices } from '../../services/ServicesProvider';
 import { colors, ui } from '../../theme';
 import { rankBySimilarity, type RankedGarment } from '../../vision/similarity';
-import { scoreUndertoneMatch } from '../../vision/undertoneMatch';
+import { scoreForWearer } from '../../style/personalFit';
 
 const SIMILAR_COUNT = 6;
 const CATEGORY_OPTIONS = CATEGORIES.map((c) => ({ key: c, label: CATEGORY_LABELS[c] }));
@@ -27,7 +27,7 @@ const openGarment = (id: string) => router.replace({ pathname: '/garment/[id]', 
 export default function GarmentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { closet, photos: photoStore, similarity, sync } = useServices();
-  const { profile } = useProfile();
+  const wearer = useWearer();
   const [garment, setGarment] = useState<Garment | null | undefined>(undefined);
   const [photos, setPhotos] = useState<GarmentPhoto[]>([]);
   const [shownPhotoId, setShownPhotoId] = useState<string | null>(null);
@@ -90,6 +90,7 @@ export default function GarmentDetail() {
       },
     ]);
 
+  const fit = scoreForWearer(garment.colorHex, wearer);
   const shownUri = photos.find((p) => p.id === shownPhotoId)?.imageUri ?? garment.imageUri;
 
   const remove = () =>
@@ -145,7 +146,7 @@ export default function GarmentDetail() {
         <Button title="Wore it today" variant="secondary" onPress={woreToday} />
       </View>
 
-      {profile && <MatchScoreCard hex={garment.colorHex} match={scoreUndertoneMatch(garment.colorHex, profile.undertone)} />}
+      {fit && <MatchScoreCard hex={garment.colorHex} match={fit} />}
 
       <PaletteCard palette={garment.palette} style={styles.palette} />
 

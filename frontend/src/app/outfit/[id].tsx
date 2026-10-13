@@ -5,7 +5,7 @@ import { Button } from '../../components/Button';
 import { OutfitCard } from '../../components/OutfitCard';
 import { SimilarGrid } from '../../components/SimilarGrid';
 import { piecesOf, useWardrobe } from '../../features/outfits/useWardrobe';
-import { useProfile } from '../../features/profile/ProfileContext';
+import { useWearer } from '../../features/self/SelfContext';
 import { relativeDay } from '../../lib/dates';
 import { useServices } from '../../services/ServicesProvider';
 import { scoreOutfit } from '../../style/outfitSuggestions';
@@ -14,7 +14,7 @@ import { ui } from '../../theme';
 export default function OutfitDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { closet, outfits: repo, sync } = useServices();
-  const undertone = useProfile().profile?.undertone ?? null;
+  const wearer = useWearer();
   const { garments, outfits, reload } = useWardrobe();
 
   if (!garments) return <View style={ui.screen} />;
@@ -51,7 +51,7 @@ export default function OutfitDetail() {
   return (
     <ScrollView style={ui.screen} contentContainerStyle={styles.content}>
       <Stack.Screen options={{ title: outfit.name }} />
-      <OutfitCard garments={pieces} score={scoreOutfit(pieces, undertone)} />
+      <OutfitCard garments={pieces} score={scoreOutfit(pieces, wearer)} />
       <Text style={[ui.muted, styles.gap]}>
         {outfit.lastWornAt ? `Last worn ${relativeDay(outfit.lastWornAt)}` : 'Not worn yet'}
         {' · '}

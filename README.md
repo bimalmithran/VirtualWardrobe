@@ -36,6 +36,7 @@ after changing it.
 | **Add** | Camera → junk filter → background removal → K-Means colour → MobileCLIP vector, then tag the category on the result screen, and optionally add more photos of the same garment. |
 | **Live Shop** | Scan a shirt in a store and get its match score against your undertone. Nothing is saved. |
 | **Twin** | Edit the Digital Twin and manage on-device model memory. |
+| **Your colours** (from Twin or Outfits) | Take a selfie or upload photos of yourself. On the phone only, the app cuts you out (RMBG), finds skin pixels and reads skin tone, undertone, depth (ITA°) and skin-to-hair contrast, combined across photos into a colour season and palette. Shows the closet ranked by how well each piece suits you and the palette colours your closet is missing, and offers to apply the detected undertone to the Twin. Outfit scores, garment match scores and Live Shop then use your palette and contrast too. The photos are never uploaded. |
 
 Category edits, removed garments and outfits all sync to the backend (see below).
 
@@ -99,6 +100,8 @@ Preprocessing follows each repo's `preprocessor_config.json`.
 | Vector embedding | `Xenova/mobileclip_s0` vision tower int8, 256², 512-d | `src/vision/embedding.ts` |
 | Multi-photo fusion | palettes pooled (each photo weighted equally, clusters within ΔE 15 merged); embeddings averaged and re-normalised | `src/vision/fusion.ts` |
 | Undertone match | hue-warmth table × saturation | `src/vision/undertoneMatch.ts` |
+| Personal colouring | YCbCr skin rule on the RMBG cutout, median skin Lab; ITA° for depth, hue angle relative to depth for undertone, hair-to-skin lightness for contrast; four-season mapping | `src/vision/personColouring.ts` |
+| Fit for you | undertone match + ΔE to the season palette; outfit light-dark range vs personal contrast | `src/style/personalFit.ts` |
 
 **Licence warning:** RMBG-1.4 is non-commercial only. `ISNET` in `src/config/models.ts` is an
 Apache-2.0 drop-in replacement; switch `MODELS.segmentation` to it before shipping anything.

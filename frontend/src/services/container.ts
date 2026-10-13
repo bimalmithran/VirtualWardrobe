@@ -1,4 +1,5 @@
 import * as Device from 'expo-device';
+import { Directory, Paths } from 'expo-file-system';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { configuredApiUrl, FetchHttpClient } from '../api/httpClient';
@@ -13,6 +14,7 @@ import { SqliteDeletionQueue } from '../storage/deletionQueue';
 import { FileGarmentImageStore } from '../storage/garmentImages';
 import { SqliteOutfitRepository, type OutfitRepository } from '../storage/outfitRepository';
 import { SecureStoreProfileRepository, type ProfileRepository } from '../storage/profileRepository';
+import { SqliteSelfPhotoRepository, type SelfPhotoRepository } from '../storage/selfPhotoRepository';
 import { CloudSyncService, DisabledCloudSync, type CloudSync } from '../sync/cloudSync';
 import { SaliencyBackgroundRemover } from '../vision/backgroundRemoval';
 import { extractPalette } from '../vision/colorExtraction';
@@ -20,6 +22,7 @@ import { MobileClipEmbedder } from '../vision/embedding';
 import { fuseViews } from '../vision/fusion';
 import { assessQuality } from '../vision/junkFilter';
 import { GarmentPipeline } from '../vision/pipeline';
+import { OnDeviceSelfAnalyzer, type SelfAnalyzer } from '../vision/selfAnalyzer';
 
 /** Everything screens may use, typed by interface rather than implementation. */
 export interface AppServices {
@@ -32,6 +35,8 @@ export interface AppServices {
   /** Null when no backend is configured. */
   similarity: SimilarityRemote | null;
   pipeline: GarmentPipeline;
+  /** Photos of the user and the on-device analysis that reads their colouring. */
+  self: { photos: SelfPhotoRepository; analyzer: SelfAnalyzer };
   models: {
     status: ModelStatusStore;
     files: ModelDownloader;
@@ -44,6 +49,7 @@ const GB = 1024 ** 3;
 interface MlServices {
   models: AppServices['models'];
   pipeline: GarmentPipeline;
+  selfAnalyzer: SelfAnalyzer;
 }
 
 let ml: MlServices | null = null;
@@ -55,13 +61,14 @@ function mlServices(): MlServices {
   const files = new ModelDownloader(status);
   // 8 GB phones keep both models warm; smaller devices swap them per stage.
   const sessions = new SessionPool(files, status, (Device.totalMemory ?? 0) >= 6 * GB ? 2 : 1);
+  const removeBackground = new SaliencyBackgroundRemover(sessions);
   const pipeline = new GarmentPipeline({
-    removeBackground: new SaliencyBackgroundRemover(sessions),
+    removeBackground,
     embedder: new MobileClipEmbedder(sessions),
     extractPalette,
     assessQuality,
   });
-  ml = { models: { status, files, memory: sessions }, pipeline };
+  ml = { models: { status, files, memory: sessions }, pipeline, selfAnalyzer: new OnDeviceSelfAnalyzer(removeBackground) };
   return ml;
 }
 
@@ -88,5 +95,16 @@ export function createAppServices(db: SQLiteDatabase, apiUrl = configuredApiUrl(
       })
     : new DisabledCloudSync();
 
-  return { closet, photos: closet, outfits, profiles, sync, similarity: api, ...mlServices() };
+  const { selfAnalyzer, ...mlRest } = mlServices();
+  const selfPhotos = new SqliteSelfPhotoRepository(db, new FileGarmentImageStore(new Directory(Paths.document, 'me')));
+  return {
+    closet,
+    photos: closet,
+    outfits,
+    profiles,
+    sync,
+    similarity: api,
+    self: { photos: selfPhotos, analyzer: selfAnalyzer },
+    ...mlRest,
+  };
 }

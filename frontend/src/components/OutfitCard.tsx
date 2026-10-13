@@ -13,7 +13,7 @@ interface Props {
   style?: StyleProp<ViewStyle>;
 }
 
-/** Thumbnails of an outfit's pieces with its harmony/undertone score and styling notes. */
+/** Thumbnails of an outfit's pieces with its harmony/personal-fit score and styling notes. */
 export function OutfitCard({ title, garments, score, children, style }: Props) {
   const tint = score.score >= 75 ? colors.good : score.score >= 55 ? colors.warn : colors.danger;
   return (
@@ -31,7 +31,7 @@ export function OutfitCard({ title, garments, score, children, style }: Props) {
       </View>
       <Text style={ui.muted}>
         Colour harmony {score.harmony}
-        {score.undertone !== null ? ` · undertone ${score.undertone}` : ''}
+        {score.fit !== null ? ` · suits you ${score.fit}` : ''}
       </Text>
       {score.notes.map((n) => (
         <Text key={n} style={ui.body}>• {n}</Text>

@@ -7,7 +7,7 @@ import { Button } from '../../components/Button';
 import { OutfitCard } from '../../components/OutfitCard';
 import { CATEGORIES, CATEGORY_LABELS, type Garment } from '../../domain/types';
 import { useWardrobe } from '../../features/outfits/useWardrobe';
-import { useProfile } from '../../features/profile/ProfileContext';
+import { useWearer } from '../../features/self/SelfContext';
 import { useServices } from '../../services/ServicesProvider';
 import { scoreOutfit } from '../../style/outfitSuggestions';
 import { colors, ui } from '../../theme';
@@ -19,7 +19,7 @@ const MAX_ITEMS = 12; // matches the server's MaxOutfitItems
 /** Pick garments, watch the score update, save. Grouped by category in outfit order. */
 export default function NewOutfit() {
   const { outfits, sync } = useServices();
-  const undertone = useProfile().profile?.undertone ?? null;
+  const wearer = useWearer();
   const { garments } = useWardrobe();
   const [selected, setSelected] = useState<string[]>([]);
   const [name, setName] = useState('');
@@ -73,7 +73,7 @@ export default function NewOutfit() {
       <TextInput value={name} onChangeText={setName} placeholder="Outfit name (optional)" placeholderTextColor={colors.muted} maxLength={80} style={styles.input} />
 
       {pieces.length > 0 ? (
-        <OutfitCard garments={pieces} score={scoreOutfit(pieces, undertone)} style={styles.gap} />
+        <OutfitCard garments={pieces} score={scoreOutfit(pieces, wearer)} style={styles.gap} />
       ) : (
         <Text style={[ui.muted, styles.gap]}>Tap garments below to build an outfit.</Text>
       )}

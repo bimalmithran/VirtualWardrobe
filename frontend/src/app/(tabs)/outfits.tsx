@@ -6,7 +6,7 @@ import { Button } from '../../components/Button';
 import { OutfitCard } from '../../components/OutfitCard';
 import type { Garment } from '../../domain/types';
 import { piecesOf, useWardrobe } from '../../features/outfits/useWardrobe';
-import { useProfile } from '../../features/profile/ProfileContext';
+import { useWearer } from '../../features/self/SelfContext';
 import { relativeDay } from '../../lib/dates';
 import { useServices } from '../../services/ServicesProvider';
 import { scoreOutfit, suggestOutfits } from '../../style/outfitSuggestions';
@@ -14,12 +14,12 @@ import { ui } from '../../theme';
 
 export default function Outfits() {
   const { closet, outfits: outfitRepo, sync } = useServices();
-  const undertone = useProfile().profile?.undertone ?? null;
+  const wearer = useWearer();
   const { garments, outfits, reload } = useWardrobe();
   const [busy, setBusy] = useState<string | null>(null);
 
   // Recomputed when garments change (e.g. after "Wear today"), so suggestions rotate.
-  const suggestions = useMemo(() => (garments ? suggestOutfits(garments, undertone, 3) : []), [garments, undertone]);
+  const suggestions = useMemo(() => (garments ? suggestOutfits(garments, wearer, 3) : []), [garments, wearer]);
   const untagged = garments?.filter((g) => g.category === null).length ?? 0;
 
   const run = async (key: string, work: () => Promise<unknown>) => {
@@ -46,7 +46,17 @@ export default function Outfits() {
   return (
     <ScrollView style={ui.screen} contentContainerStyle={styles.content}>
       <Text style={ui.h2}>Suggested for you</Text>
-      <Text style={ui.muted}>Ranked by colour harmony, your {undertone ?? ''} undertone, and what you haven&apos;t worn lately.</Text>
+      <Text style={ui.muted}>
+        Ranked by colour harmony,{' '}
+        {wearer.colouring ? `your ${wearer.colouring.season} colouring and contrast` : `your ${wearer.undertone ?? ''} undertone`}, and what you
+        haven&apos;t worn lately.
+      </Text>
+      {!wearer.colouring && (
+        <Pressable onPress={() => router.push('/me')} style={[ui.card, styles.gap]}>
+          <Text style={ui.h2}>Get suggestions for your colouring</Text>
+          <Text style={ui.muted}>Add a photo of yourself and the app reads your skin tone and contrast, on this phone only.</Text>
+        </Pressable>
+      )}
       {suggestions.length === 0 ? (
         <View style={[ui.card, styles.gap]}>
           <Text style={ui.body}>Tag at least one top and one bottom to get outfit suggestions.</Text>
@@ -75,7 +85,7 @@ export default function Outfits() {
         const pieces = piecesOf(o, garments);
         return (
           <Pressable key={o.id} onPress={() => router.push({ pathname: '/outfit/[id]', params: { id: o.id } })}>
-            <OutfitCard title={o.name} garments={pieces} score={scoreOutfit(pieces, undertone)} style={styles.gap}>
+            <OutfitCard title={o.name} garments={pieces} score={scoreOutfit(pieces, wearer)} style={styles.gap}>
               <Text style={ui.muted}>{o.lastWornAt ? `Last worn ${relativeDay(o.lastWornAt)}` : 'Not worn yet'}</Text>
             </OutfitCard>
           </Pressable>

@@ -63,6 +63,16 @@ const MIGRATIONS: ((db: SQLiteDatabase) => Promise<void>)[] = [
         SELECT id, id, image_uri, palette_json, embedding, created_at FROM garments;
       ALTER TABLE garments ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;
     `),
+  // 5: photos of the user, for colour analysis. Phone-only: there is no sync bookkeeping.
+  (db) =>
+    db.execAsync(`
+      CREATE TABLE IF NOT EXISTS self_photos (
+        id TEXT PRIMARY KEY NOT NULL,
+        image_uri TEXT NOT NULL,
+        reading_json TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+    `),
 ];
 
 /** Passed to <SQLiteProvider onInit>. */

@@ -9,8 +9,8 @@ export interface QualityReport {
 
 // Tuned for a ~256 px analysis image. Sharp phone photos of fabric typically score
 // sharpness in the hundreds; motion blur drops it below ~40.
-const MIN_BRIGHTNESS = 45;
-const MAX_BRIGHTNESS = 235;
+export const MIN_BRIGHTNESS = 45;
+export const MAX_BRIGHTNESS = 235;
 const MIN_CONTRAST = 18;
 const MIN_SHARPNESS = 40;
 const ANALYSIS_SIDE = 256;

@@ -1,4 +1,4 @@
-import type { Category, Garment } from '../domain/types';
+import type { Category, Garment, Undertone, Wearer } from '../domain/types';
 import { pairHarmony, scoreOutfit, suggestOutfits } from './outfitSuggestions';
 
 const g = (id: string, colorHex: string, category: Category | null, lastWornAt: number | null = null): Garment => ({
@@ -18,6 +18,7 @@ const g = (id: string, colorHex: string, category: Category | null, lastWornAt: 
 });
 
 const NOW = 1_000_000_000_000;
+const w = (undertone: Undertone): Wearer => ({ undertone, colouring: null });
 
 describe('pairHarmony', () => {
   test('neutrals go with anything', () => {
@@ -38,25 +39,25 @@ describe('pairHarmony', () => {
 
 describe('scoreOutfit', () => {
   test('empty outfit scores zero', () => {
-    expect(scoreOutfit([], 'warm').score).toBe(0);
+    expect(scoreOutfit([], w('warm')).score).toBe(0);
   });
 
   test('undertone shifts the score for the top only', () => {
     const navyTop = [g('t', '#1F2A60', 'tops'), g('b', '#D8CBB0', 'bottoms')];
-    expect(scoreOutfit(navyTop, 'cool').score).toBeGreaterThan(scoreOutfit(navyTop, 'warm').score);
-    expect(scoreOutfit(navyTop, null).undertone).toBeNull();
+    expect(scoreOutfit(navyTop, w('cool')).score).toBeGreaterThan(scoreOutfit(navyTop, w('warm')).score);
+    expect(scoreOutfit(navyTop, null).fit).toBeNull();
   });
 
   test('recently worn pieces are down-weighted', () => {
     const fresh = [g('t', '#FFFFFF', 'tops'), g('b', '#1C1C1C', 'bottoms')];
     const worn = [g('t', '#FFFFFF', 'tops', NOW - 1000), g('b', '#1C1C1C', 'bottoms')];
-    expect(scoreOutfit(worn, 'neutral', NOW).score).toBeLessThan(scoreOutfit(fresh, 'neutral', NOW).score);
+    expect(scoreOutfit(worn, w('neutral'), NOW).score).toBeLessThan(scoreOutfit(fresh, w('neutral'), NOW).score);
   });
 });
 
 describe('suggestOutfits', () => {
   test('needs at least one top and one bottom', () => {
-    expect(suggestOutfits([g('t', '#FFFFFF', 'tops'), g('x', '#000000', null)], 'warm')).toEqual([]);
+    expect(suggestOutfits([g('t', '#FFFFFF', 'tops'), g('x', '#000000', null)], w('warm'))).toEqual([]);
   });
 
   test('ranks combinations, adds shoes, and does not repeat a top', () => {
@@ -67,7 +68,7 @@ describe('suggestOutfits', () => {
       g('chinos', '#C8B68E', 'bottoms'),
       g('sneakers', '#FAFAFA', 'footwear'),
     ];
-    const s = suggestOutfits(closet, 'warm', 3, NOW);
+    const s = suggestOutfits(closet, w('warm'), 3, NOW);
     expect(s).toHaveLength(2);
     expect(new Set(s.map((x) => x.garments[0].id)).size).toBe(2);
     expect(s[0].score.score).toBeGreaterThanOrEqual(s[1].score.score);

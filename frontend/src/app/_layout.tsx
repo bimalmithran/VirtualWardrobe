@@ -6,6 +6,7 @@ import { SQLiteProvider } from 'expo-sqlite';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ProfileProvider } from '../features/profile/ProfileContext';
+import { SelfProvider } from '../features/self/SelfContext';
 import { ServicesProvider, useServices } from '../services/ServicesProvider';
 import { DB_NAME, migrate } from '../storage/database';
 import { colors } from '../theme';
@@ -16,17 +17,20 @@ export default function RootLayout() {
       <SQLiteProvider databaseName={DB_NAME} onInit={migrate}>
         <ServicesProvider>
           <ProfileProvider>
-            <ReleaseModelsInBackground />
-            <SyncOnForeground />
-            <StatusBar style="dark" />
-            <Stack screenOptions={{ contentStyle: { backgroundColor: colors.bg } }}>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="onboarding" options={{ title: 'Your Digital Twin', headerBackVisible: false, gestureEnabled: false }} />
-              <Stack.Screen name="garment/[id]" options={{ title: 'Garment' }} />
-              <Stack.Screen name="add-photo/[id]" options={{ title: 'Add a photo' }} />
-              <Stack.Screen name="outfit/new" options={{ title: 'Build an outfit' }} />
-              <Stack.Screen name="outfit/[id]" options={{ title: 'Outfit' }} />
-            </Stack>
+            <SelfProvider>
+              <ReleaseModelsInBackground />
+              <SyncOnForeground />
+              <StatusBar style="dark" />
+              <Stack screenOptions={{ contentStyle: { backgroundColor: colors.bg } }}>
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="onboarding" options={{ title: 'Your Digital Twin', headerBackVisible: false, gestureEnabled: false }} />
+                <Stack.Screen name="garment/[id]" options={{ title: 'Garment' }} />
+                <Stack.Screen name="add-photo/[id]" options={{ title: 'Add a photo' }} />
+                <Stack.Screen name="me" options={{ title: 'Your colours' }} />
+                <Stack.Screen name="outfit/new" options={{ title: 'Build an outfit' }} />
+                <Stack.Screen name="outfit/[id]" options={{ title: 'Outfit' }} />
+              </Stack>
+            </SelfProvider>
           </ProfileProvider>
         </ServicesProvider>
       </SQLiteProvider>

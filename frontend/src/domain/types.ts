@@ -99,3 +99,43 @@ export interface NewGarmentPhoto {
 export interface NewGarment extends NewGarmentPhoto {
   category?: Category | null;
 }
+
+export type Depth = 'light' | 'medium' | 'deep';
+export type ContrastLevel = 'low' | 'medium' | 'high';
+export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
+
+/** CIELAB colour, [L*, a*, b*]. */
+export type LabColor = [number, number, number];
+
+/** What one photo of the user shows: their skin colour and how dark their hair reads. */
+export interface SelfReading {
+  skin: LabColor;
+  /** Lightness of the darkest part of the head (hair); null when none was visible. */
+  hairL: number | null;
+}
+
+/** A photo of the user. Kept on the phone only; never uploaded. */
+export interface SelfPhoto {
+  id: string;
+  imageUri: string;
+  reading: SelfReading;
+  createdAt: number;
+}
+
+/** The user's colouring, combined from all of their photos. */
+export interface PersonalColouring {
+  skinHex: string;
+  undertone: Undertone;
+  depth: Depth;
+  contrast: ContrastLevel;
+  season: Season;
+  /** Colours that flatter this season, strongest first. */
+  palette: string[];
+  photoCount: number;
+}
+
+/** Who suggestions are for: the Digital Twin's undertone plus colouring read from photos, if any. */
+export interface Wearer {
+  undertone: Undertone | null;
+  colouring: PersonalColouring | null;
+}
