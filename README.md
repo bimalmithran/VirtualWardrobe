@@ -11,6 +11,8 @@ and uploads catch up later.
 
 ## Quick start (Docker)
 
+Step-by-step server and phone setup, with troubleshooting: **[INSTALL.md](INSTALL.md)**.
+
 ```bash
 cp .env.example .env               # set EXPO_PUBLIC_API_URL to this machine's LAN IP, e.g. http://192.168.1.20:8080
 docker compose up --build -d       # Postgres + pgvector, and the Go API on :8080
@@ -23,6 +25,19 @@ adb install -r frontend/dist/VirtualWardrobe-release.apk
 The phone must be on the same Wi-Fi as the machine running Compose, and port 8080 must be open
 in that machine's firewall. `EXPO_PUBLIC_API_URL` is baked in at bundle time, so rebuild the APK
 after changing it.
+
+## Features
+
+| Tab / screen | What it does |
+|---|---|
+| **Closet** | Grid of background-removed garments. Filter by category, favourites or untagged. Long-press to remove. |
+| **Garment** | Category tag, ♥ favourite, "Wore it today" with wear count and last-worn date, undertone match score, on-device and cloud (pgvector) similar items. |
+| **Outfits** | Up to three suggested looks (top + bottom + best shoes) ranked by colour harmony, Digital Twin undertone and what you haven't worn in the last two days. Save a suggestion or build your own, see its live score, and mark it worn. |
+| **Add** | Camera → junk filter → background removal → K-Means colour → MobileCLIP vector, then tag the category on the result screen. |
+| **Live Shop** | Scan a shirt in a store and get its match score against your undertone. Nothing is saved. |
+| **Twin** | Edit the Digital Twin and manage on-device model memory. |
+
+Category edits, removed garments and outfits all sync to the backend (see below).
 
 ## Frontend (`frontend/`)
 
@@ -110,11 +125,15 @@ src/features/ingestion/   IngestionScreen (container) · useIngestion (state mac
                           modes.ts (IngestionMode strategies: closet, shop) · components/ (views)
 src/features/profile/     ProfileContext (React state; persistence and sync delegated)
 src/features/closet/      CloudSearchPanel
+src/features/outfits/     useWardrobe (garments + outfits, refreshed on focus and after sync)
+src/style/                outfitSuggestions: LCh colour-harmony + undertone scoring, pure and unit-tested
 src/vision/               GarmentPipeline + stages behind interfaces (BackgroundRemover,
                           GarmentEmbedder, PaletteExtractor); pure colour, junk and similarity math
 src/ml/                   ModelStatusStore (observable) · ModelDownloader (files) ·
                           SessionPool (implements ModelRunner + ModelMemory) · ort.ts (lazy native load)
 src/storage/              SqliteClosetRepository (ClosetRepository + PendingUploads) ·
+                          SqliteOutfitRepository (OutfitRepository + PendingOutfits) ·
+                          SqliteDeletionQueue (server deletes owed) ·
                           FileGarmentImageStore · SecureStoreProfileRepository · migrations
 src/api/                  FetchHttpClient (transport) · SecureStoreInstallationId · WardrobeApi (endpoints)
 src/sync/                 CloudSyncService / DisabledCloudSync (null object when no backend)
@@ -137,11 +156,20 @@ How SOLID maps onto this layout:
 
 ### How the phone syncs
 
-`CloudSyncService` uploads the profile first, because items have a foreign key to users. It then
-uploads every SQLite row with `synced_at IS NULL`. Sync runs after each save, at launch, and when
-the app returns to the foreground. A network or 5xx error stops the batch, and it retries on the
-next trigger. A 4xx error only skips that one garment. Deleting a garment on the phone does not
-delete it on the server yet.
+`CloudSyncService` runs one pass in this order:
+
+1. Profile, because items have a foreign key to users.
+2. Queued deletes. Removing a garment or outfit the server has already seen writes a tombstone to
+   the `deletions` table in the same transaction. A 404 counts as done.
+3. Garments with `synced_at IS NULL`. Changing a garment's category clears `synced_at`, so it is
+   re-uploaded. `markSynced` checks the uploaded category, so an edit made mid-upload is not lost.
+4. Outfits with `synced_at IS NULL`. The server answers 409 while any of an outfit's garments is
+   still missing. The outfit stays queued with no error reported, and goes up on a later pass.
+
+Sync runs after each save, at launch, and when the app returns to the foreground. A network or
+5xx error stops the pass, and it retries on the next trigger. Any other 4xx only skips that record.
+Removing a garment also drops it from local outfits, which mirrors the server's `ON DELETE CASCADE`
+on `outfit_items`. An outfit left with no garments is deleted.
 
 ## Backend (`backend/`)
 
@@ -149,6 +177,10 @@ delete it on the server yet.
 |---|---|---|
 | `POST /api/users/profile` | `{user_id, height_cm, body_shape, skin_undertone}` | Upsert. `user_id` is a UUID the app generates once per install. |
 | `POST /api/wardrobe/items` | `{user_id, client_item_id, image_base64 \| image_url, color_hex, embedding[512], metadata?, category_slug?}` | Idempotent on `(user_id, client_item_id)`: 201 created, 200 updated. |
+| `DELETE /api/wardrobe/items/{client_item_id}?user_id=` | | 204, or 404 if already gone. Also removes the stored PNG and the garment's outfit memberships. |
+| `POST /api/outfits` | `{user_id, client_outfit_id, name, item_client_ids[], occasion?, metadata?}` | Idempotent on `(user_id, client_outfit_id)`: 201/200. Replaces the garment list and keeps its order. 409 while a garment is not uploaded yet. |
+| `GET /api/outfits?user_id=` | | `{outfits: [...]}`, newest first, garments in display order. |
+| `DELETE /api/outfits/{client_outfit_id}?user_id=` | | 204, or 404 if already gone. |
 | `POST /api/wardrobe/search` | `{embedding[512], user_id?, limit?}` | Top 5 by default (max 50) by cosine similarity via the HNSW index. With `user_id` set, pgvector 0.8's iterative scan keeps the filter from returning too few rows. |
 | `POST /api/llm/complete` | `{prompt, max_output_tokens?, min_quality?, cost_ceiling_usd?}` | LLM gateway demo (mock providers). 422 when no model fits the ceiling, 502 when every eligible model failed. |
 | `GET /api/llm/models` | | EMA latency, sample count and cooldown state for each model. |
