@@ -4,7 +4,8 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import { Button } from '../../../components/Button';
 import { Chips } from '../../../components/Chips';
 import { MatchScoreCard } from '../../../components/MatchScoreCard';
-import { CATEGORIES, CATEGORY_LABELS, type Category, type PaletteEntry } from '../../../domain/types';
+import { PaletteCard } from '../../../components/PaletteCard';
+import { CATEGORIES, CATEGORY_LABELS, type Category } from '../../../domain/types';
 import { ui } from '../../../theme';
 import type { ProcessedGarment } from '../../../vision/pipeline';
 import type { IngestionMode, IngestionOutcome } from '../modes';
@@ -15,15 +16,21 @@ interface Props {
   result: ProcessedGarment;
   outcome: IngestionOutcome;
   onAgain: () => void;
-  onViewCloset: () => void;
+  onExit: () => void;
   /** Set for saved garments: tags the new garment so it can be used in outfit suggestions. */
   onCategory?: (category: Category) => void;
+  /** Set when more photos of this garment can be added. */
+  onAddPhotos?: () => void;
 }
 
 const CATEGORY_OPTIONS = CATEGORIES.map((c) => ({ key: c, label: CATEGORY_LABELS[c] }));
 
-export function IngestionResult({ copy, result, outcome, onAgain, onViewCloset, onCategory }: Props) {
+export function IngestionResult({ copy, result, outcome, onAgain, onExit, onCategory, onAddPhotos }: Props) {
   const [category, setCategory] = useState<Category | null>(null);
+  const garment = outcome.garment;
+  // A saved garment's palette is fused from all of its photos; show that, not just this shot.
+  const palette = garment?.palette ?? result.palette;
+  const photoCount = garment?.photoCount ?? 1;
   return (
     <>
       <Text style={ui.h1}>{copy.doneTitle}</Text>
@@ -45,35 +52,24 @@ export function IngestionResult({ copy, result, outcome, onAgain, onViewCloset, 
         </View>
       )}
       {outcome.match && <MatchScoreCard hex={result.colorHex} match={outcome.match} />}
-      <Palette palette={result.palette} />
+      <PaletteCard
+        palette={palette}
+        caption={photoCount > 1 ? `Combined from ${photoCount} photos of this garment` : undefined}
+        style={screenStyles.gap}
+      />
       <Text style={[ui.muted, screenStyles.gap]}>
         {Object.entries(result.timingsMs).map(([k, v]) => `${k} ${v} ms`).join(' · ')}
         {result.embedding ? ` · ${result.embedding.length}-d vector` : ''}
       </Text>
-      <Button title={copy.againLabel} onPress={onAgain} style={screenStyles.gap} />
-      {outcome.garmentId && <Button title="View in closet" variant="secondary" onPress={onViewCloset} style={screenStyles.gap} />}
+      {onAddPhotos && (
+        <>
+          <Button title="Add another photo of this garment" onPress={onAddPhotos} style={screenStyles.gap} />
+          <Text style={[ui.muted, styles.hint]}>The back, a close-up, or other light. More photos give a truer colour and better suggestions.</Text>
+        </>
+      )}
+      <Button title={copy.againLabel} variant={onAddPhotos ? 'secondary' : 'primary'} onPress={onAgain} style={screenStyles.gap} />
+      {copy.exitLabel && <Button title={copy.exitLabel} variant="secondary" onPress={onExit} style={screenStyles.gap} />}
     </>
-  );
-}
-
-function Palette({ palette }: { palette: PaletteEntry[] }) {
-  return (
-    <View style={[ui.card, screenStyles.gap]}>
-      <Text style={ui.h2}>Colour breakdown</Text>
-      <View style={styles.paletteBar}>
-        {palette.map((p) => (
-          <View key={p.hex} style={{ flex: p.share, backgroundColor: p.hex }} />
-        ))}
-      </View>
-      <View style={styles.paletteLegend}>
-        {palette.map((p, i) => (
-          <Text key={p.hex} style={ui.muted}>
-            {i === 0 ? 'Primary ' : ''}
-            {p.hex} {(p.share * 100).toFixed(0)}%
-          </Text>
-        ))}
-      </View>
-    </View>
   );
 }
 
@@ -81,6 +77,5 @@ const styles = StyleSheet.create({
   category: { gap: 6, marginBottom: 12 },
   preview: { aspectRatio: 1, borderRadius: 16, marginVertical: 12, overflow: 'hidden' },
   previewImage: { width: '100%', height: '100%' },
-  paletteBar: { flexDirection: 'row', height: 28, borderRadius: 8, overflow: 'hidden', marginTop: 10 },
-  paletteLegend: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 4, marginTop: 8 },
+  hint: { marginTop: 6 },
 });

@@ -31,9 +31,9 @@ after changing it.
 | Tab / screen | What it does |
 |---|---|
 | **Closet** | Grid of background-removed garments. Filter by category, favourites or untagged. Long-press to remove. |
-| **Garment** | Category tag, ♥ favourite, "Wore it today" with wear count and last-worn date, undertone match score, on-device and cloud (pgvector) similar items. |
+| **Garment** | Photo strip: add more photos of the same garment (back, close-up, other light) and its colour and style vector are fused across all of them; long-press a photo to remove it. Category tag, ♥ favourite, "Wore it today" with wear count and last-worn date, undertone match score, on-device and cloud (pgvector) similar items. |
 | **Outfits** | Up to three suggested looks (top + bottom + best shoes) ranked by colour harmony, Digital Twin undertone and what you haven't worn in the last two days. Save a suggestion or build your own, see its live score, and mark it worn. |
-| **Add** | Camera → junk filter → background removal → K-Means colour → MobileCLIP vector, then tag the category on the result screen. |
+| **Add** | Camera → junk filter → background removal → K-Means colour → MobileCLIP vector, then tag the category on the result screen, and optionally add more photos of the same garment. |
 | **Live Shop** | Scan a shirt in a store and get its match score against your undertone. Nothing is saved. |
 | **Twin** | Edit the Digital Twin and manage on-device model memory. |
 
@@ -97,6 +97,7 @@ Preprocessing follows each repo's `preprocessor_config.json`.
 | Background removal | `briaai/RMBG-1.4` int8, 1024², 44 MB | `src/vision/backgroundRemoval.ts` |
 | Primary colour | K-Means++ in CIELAB, k=5, near-duplicate clusters merged | `src/vision/colorExtraction.ts` |
 | Vector embedding | `Xenova/mobileclip_s0` vision tower int8, 256², 512-d | `src/vision/embedding.ts` |
+| Multi-photo fusion | palettes pooled (each photo weighted equally, clusters within ΔE 15 merged); embeddings averaged and re-normalised | `src/vision/fusion.ts` |
 | Undertone match | hue-warmth table × saturation | `src/vision/undertoneMatch.ts` |
 
 **Licence warning:** RMBG-1.4 is non-commercial only. `ISNET` in `src/config/models.ts` is an

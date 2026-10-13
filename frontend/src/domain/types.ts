@@ -47,7 +47,34 @@ export interface Garment {
   favorite: boolean;
   wearCount: number;
   lastWornAt: number | null;
+  /** Number of photos the colour and embedding were fused from. */
+  photoCount: number;
+  /** Bumped by every change the server must see; sync only marks the revision it uploaded. */
+  revision: number;
 }
+
+/** One photo of a garment, with what the pipeline read from that photo alone. */
+export interface GarmentPhoto {
+  id: string;
+  garmentId: string;
+  imageUri: string;
+  palette: PaletteEntry[];
+  embedding: Float32Array | null;
+  createdAt: number;
+}
+
+/** What a single view contributes to a garment's appearance. */
+export type GarmentView = Pick<GarmentPhoto, 'palette' | 'embedding'>;
+
+/** A garment's appearance combined across all of its photos. */
+export interface FusedAppearance {
+  colorHex: string;
+  palette: PaletteEntry[];
+  embedding: Float32Array | null;
+}
+
+/** Combines per-photo views into one appearance. Views are never empty. */
+export type AppearanceFuser = (views: GarmentView[]) => FusedAppearance;
 
 /** User-editable garment fields. Changing category re-queues the garment for upload. */
 export type GarmentPatch = Partial<Pick<Garment, 'category' | 'favorite'>>;
@@ -62,10 +89,13 @@ export interface Outfit {
   syncedAt: number | null;
 }
 
-export interface NewGarment {
-  category?: Category | null;
+/** One processed photo, ready to store: its cutout plus what was read from it. */
+export interface NewGarmentPhoto {
   png: Uint8Array;
-  colorHex: string;
   palette: PaletteEntry[];
   embedding: Float32Array | null;
+}
+
+export interface NewGarment extends NewGarmentPhoto {
+  category?: Category | null;
 }

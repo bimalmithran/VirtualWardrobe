@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
 
 import { CameraCapture } from '../../components/CameraCapture';
 import { ModelSetup } from '../../components/ModelSetup';
@@ -15,15 +14,24 @@ import { useIngestionMode, type ModeKey } from './modes';
 import { useIngestion } from './useIngestion';
 
 /** Container: wires a mode strategy and the pipeline to the state machine and picks a view. */
-export function IngestionScreen({ mode: modeKey }: { mode: ModeKey }) {
+export function IngestionScreen({
+  mode: modeKey,
+  garmentId,
+  underHeader = false,
+}: {
+  mode: ModeKey;
+  garmentId?: string;
+  /** The route shows a navigation header, which already clears the status bar. */
+  underHeader?: boolean;
+}) {
   const { pipeline, models, closet, sync } = useServices();
   const statuses = useModelStatuses(models.status);
-  const mode = useIngestionMode(modeKey);
+  const mode = useIngestionMode(modeKey, garmentId);
   const { state, capture, processAnyway, reset } = useIngestion(mode, pipeline);
   const insets = useSafeAreaInsets();
 
   const page = (children: ReactNode, scroll = false) => {
-    const style = [screenStyles.padded, { paddingTop: insets.top + 16, paddingBottom: 32 }];
+    const style = [screenStyles.padded, { paddingTop: (underHeader ? 0 : insets.top) + 16, paddingBottom: 32 }];
     return scroll ? (
       <ScrollView style={ui.screen} contentContainerStyle={style}>{children}</ScrollView>
     ) : (
@@ -45,30 +53,40 @@ export function IngestionScreen({ mode: modeKey }: { mode: ModeKey }) {
       return page(<StepProgress steps={mode.steps} current={state.step} />);
     case 'error':
       return page(<ErrorPanel message={state.message} onRetry={reset} />);
-    case 'done':
+    case 'done': {
+      const { outcome } = state;
+      const garment = outcome.garment;
       return page(
         <IngestionResult
           copy={mode.copy}
           result={state.result}
-          outcome={state.outcome}
+          outcome={outcome}
           onAgain={reset}
           onCategory={
-            state.outcome.garmentId
+            garment && mode.asksCategory
               ? (category) => {
-                  const id = state.outcome.garmentId!;
                   closet
-                    .update(id, { category })
+                    .update(garment.id, { category })
                     .then(() => sync.syncAll())
                     .catch(() => {});
                 }
               : undefined
           }
-          onViewCloset={() => {
+          onAddPhotos={
+            mode.addPhotos
+              ? () => {
+                  reset();
+                  mode.addPhotos!(outcome);
+                }
+              : undefined
+          }
+          onExit={() => {
             reset();
-            router.navigate('/');
+            mode.exit(outcome);
           }}
         />,
         true,
       );
+    }
   }
 }

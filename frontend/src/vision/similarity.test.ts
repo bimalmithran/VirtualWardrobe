@@ -18,6 +18,8 @@ const g = (id: string, embedding: Float32Array | null): Garment => ({
   wearCount: 0,
   lastWornAt: null,
   syncedAt: null,
+  photoCount: 1,
+  revision: 0,
 });
 
 test('ranks by cosine similarity, excluding the query and unembedded garments', () => {

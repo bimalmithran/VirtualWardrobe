@@ -23,6 +23,7 @@ export default function RootLayout() {
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="onboarding" options={{ title: 'Your Digital Twin', headerBackVisible: false, gestureEnabled: false }} />
               <Stack.Screen name="garment/[id]" options={{ title: 'Garment' }} />
+              <Stack.Screen name="add-photo/[id]" options={{ title: 'Add a photo' }} />
               <Stack.Screen name="outfit/new" options={{ title: 'Build an outfit' }} />
               <Stack.Screen name="outfit/[id]" options={{ title: 'Outfit' }} />
             </Stack>

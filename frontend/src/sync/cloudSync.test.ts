@@ -18,6 +18,8 @@ const garment = (id: string): Garment => ({
   favorite: false,
   wearCount: 0,
   lastWornAt: null,
+  photoCount: 1,
+  revision: 0,
 });
 
 const outfit = (id: string, itemIds: string[]): Outfit => ({ id, name: id, itemIds, createdAt: 0, lastWornAt: null, syncedAt: null });

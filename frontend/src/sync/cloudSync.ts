@@ -129,6 +129,7 @@ export class CloudSyncService implements CloudSync {
           embedding: g.embedding!, // listUnsynced only returns rows with an embedding
           metadata: {
             palette: g.palette,
+            photo_count: g.photoCount,
             captured_at: new Date(g.createdAt).toISOString(),
             models: { segmentation: MODELS.segmentation.fileName, embedding: MODELS.embedding.fileName },
           },

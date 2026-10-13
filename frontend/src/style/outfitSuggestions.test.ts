@@ -13,6 +13,8 @@ const g = (id: string, colorHex: string, category: Category | null, lastWornAt: 
   favorite: false,
   wearCount: 0,
   lastWornAt,
+  photoCount: 1,
+  revision: 0,
 });
 
 const NOW = 1_000_000_000_000;

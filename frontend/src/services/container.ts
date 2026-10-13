@@ -8,7 +8,7 @@ import { ModelDownloader } from '../ml/modelDownloader';
 import type { ModelMemory } from '../ml/modelRunner';
 import { ModelStatusStore } from '../ml/modelStatus';
 import { SessionPool } from '../ml/sessionPool';
-import { SqliteClosetRepository, type ClosetRepository } from '../storage/closetRepository';
+import { SqliteClosetRepository, type ClosetRepository, type GarmentPhotos } from '../storage/closetRepository';
 import { SqliteDeletionQueue } from '../storage/deletionQueue';
 import { FileGarmentImageStore } from '../storage/garmentImages';
 import { SqliteOutfitRepository, type OutfitRepository } from '../storage/outfitRepository';
@@ -17,12 +17,15 @@ import { CloudSyncService, DisabledCloudSync, type CloudSync } from '../sync/clo
 import { SaliencyBackgroundRemover } from '../vision/backgroundRemoval';
 import { extractPalette } from '../vision/colorExtraction';
 import { MobileClipEmbedder } from '../vision/embedding';
+import { fuseViews } from '../vision/fusion';
 import { assessQuality } from '../vision/junkFilter';
 import { GarmentPipeline } from '../vision/pipeline';
 
 /** Everything screens may use, typed by interface rather than implementation. */
 export interface AppServices {
   closet: ClosetRepository;
+  /** Extra photos per garment; the same store as `closet`. */
+  photos: GarmentPhotos;
   outfits: OutfitRepository;
   profiles: ProfileRepository;
   sync: CloudSync;
@@ -68,7 +71,7 @@ function mlServices(): MlServices {
  */
 export function createAppServices(db: SQLiteDatabase, apiUrl = configuredApiUrl()): AppServices {
   const images = new FileGarmentImageStore();
-  const closet = new SqliteClosetRepository(db, images);
+  const closet = new SqliteClosetRepository(db, images, fuseViews);
   const outfits = new SqliteOutfitRepository(db);
   const profiles = new SecureStoreProfileRepository();
   const api = apiUrl ? new WardrobeApi(new FetchHttpClient(apiUrl), new SecureStoreInstallationId()) : null;
@@ -85,5 +88,5 @@ export function createAppServices(db: SQLiteDatabase, apiUrl = configuredApiUrl(
       })
     : new DisabledCloudSync();
 
-  return { closet, outfits, profiles, sync, similarity: api, ...mlServices() };
+  return { closet, photos: closet, outfits, profiles, sync, similarity: api, ...mlServices() };
 }
