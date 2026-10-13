@@ -173,3 +173,37 @@ deliberately left out.
   extra piece is another chance of a colour clash.)
 - **Carousel**: the top 5 looks are paged horizontally, with no main piece repeated, so the
   options are real alternatives.
+
+## 5b. Stylist chat & streaming
+
+- **LLM: Claude Opus 5.5 (`claude-opus-5-5`) via the official Go SDK**, streamed, effort `low`
+  (chat is latency-sensitive; styling doesn't need deep reasoning). Override with
+  `STYLIST_MODEL`. **Server-side refusal fallback is on** (`fallbacks: "default"`,
+  beta `server-side-fallback-2026-07-01`), so a policy decline is retried on the recommended
+  model instead of failing; remove those two fields to opt out.
+- **Outfit cards are a strict tool** (`show_outfit` with `strict: true`, eager input
+  streaming, and server-side validation). The server keeps only item ids that exist in the
+  user's closet, at most three cards, so the model can't invent garments. The prompt asks
+  for cards before text because on Opus 5.5 text written between tool calls comes back as
+  (hidden) progress notes.
+- **Prompt caching**: tools → fixed system prompt → closet summary (cache breakpoint) →
+  messages; the per-question context and pre-scored candidates go in the last user turn,
+  after the cached prefix.
+- **What is sent**: conversation text, a text summary of the closet (category, colour name,
+  hex, pattern, tags, wear count — no photos, no prices), the person's undertone/season/shape,
+  and up to 5 looks the on-device generator scored for the question. Requires the **AI stylist
+  consent**, checked on the server too.
+- **Without an API key** the server uses a deterministic built-in stylist; **without a server
+  or without consent** the phone uses its own basic stylist. Same UI either way, with a
+  notice offering to turn on the AI stylist.
+- **SSE**: `event: delta|outfit|done|error`, JSON data, 15 s heartbeat comments, per-event
+  write deadlines (the server's 60 s WriteTimeout would cut long chats), `X-Accel-Buffering:
+  no`. Errors before the stream starts are normal JSON (403 consent, 402 quota).
+- **Client** uses `expo/fetch` (streaming bodies on Android/iOS/web) and a byte-level SSE
+  parser that splits on `\n` before decoding, so Hindi/Malayalam characters split across
+  chunks decode correctly without relying on `TextDecoder` in Hermes.
+- Chat history is stored on the phone (SQLite); the last 12 turns are sent, with earlier
+  cards folded into text, so the server stays stateless.
+- **Not tested against the live Claude API here** (no key on this machine); the Claude path
+  compiles against SDK v1.80.0 and the SSE path was tested end-to-end with the built-in
+  stylist. Set `ANTHROPIC_API_KEY` in `.env` to switch it on.

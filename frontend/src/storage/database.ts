@@ -98,6 +98,17 @@ const MIGRATIONS: ((db: SQLiteDatabase) => Promise<void>)[] = [
     `),
   // 7: cached MoveNet keypoints per photo of the user, for virtual try-on.
   (db) => db.execAsync('ALTER TABLE self_photos ADD COLUMN pose_json TEXT'),
+  // 8: stylist chat history, kept on the phone so the conversation survives restarts.
+  (db) =>
+    db.execAsync(`
+      CREATE TABLE IF NOT EXISTS chat_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+        text TEXT NOT NULL,
+        cards_json TEXT NOT NULL DEFAULT '[]',
+        created_at INTEGER NOT NULL
+      );
+    `),
 ];
 
 /** Passed to <SQLiteProvider onInit>. */

@@ -24,6 +24,8 @@ export interface HttpClient {
   delete(path: string): Promise<void>;
   /** Headers that authenticate this install; for transports that bypass this client (SSE). */
   authHeaders(): Promise<Record<string, string>>;
+  /** Enrols this install's token; for transports that bypass this client and got a 401. */
+  ensureEnrolled(): Promise<void>;
 }
 
 /**
@@ -68,6 +70,10 @@ export class FetchHttpClient implements HttpClient {
       }
       throw e;
     }
+  }
+
+  ensureEnrolled(): Promise<void> {
+    return this.identity ? this.enroll() : Promise.resolve();
   }
 
   /** Single-flight, so a burst of first requests enrols once. */

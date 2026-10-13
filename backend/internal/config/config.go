@@ -26,6 +26,9 @@ type Config struct {
 	// VisionSegmentation picks the cutout model: "rmbg-1.4" (non-commercial licence, matches
 	// the app's default) or "isnet" (Apache-2.0).
 	VisionSegmentation string // VISION_SEGMENTATION, default rmbg-1.4
+	// The AI stylist uses Claude when an API key is set, else the built-in basic stylist.
+	AnthropicAPIKey string // ANTHROPIC_API_KEY
+	StylistModel    string // STYLIST_MODEL, default claude-opus-5-5
 }
 
 // FromEnv reads Config using getenv (os.Getenv in production, a map in tests).
@@ -44,6 +47,8 @@ func FromEnv(getenv func(string) string) (Config, error) {
 		VisionModelsDir:    or(getenv("VISION_MODELS_DIR"), "./models"),
 		ORTLibPath:         or(getenv("ORT_LIB_PATH"), "/usr/local/lib/libonnxruntime.so"),
 		VisionSegmentation: or(getenv("VISION_SEGMENTATION"), "rmbg-1.4"),
+		AnthropicAPIKey:    getenv("ANTHROPIC_API_KEY"),
+		StylistModel:       or(getenv("STYLIST_MODEL"), "claude-opus-5-5"),
 	}
 	if c.VisionSegmentation != "rmbg-1.4" && c.VisionSegmentation != "isnet" {
 		return Config{}, errors.New("VISION_SEGMENTATION must be rmbg-1.4 or isnet")

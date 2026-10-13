@@ -20,6 +20,7 @@ import (
 	"github.com/bimalmithran/virtualwardrobe/backend/internal/imagestore"
 	"github.com/bimalmithran/virtualwardrobe/backend/internal/llmgateway"
 	"github.com/bimalmithran/virtualwardrobe/backend/internal/postgres"
+	"github.com/bimalmithran/virtualwardrobe/backend/internal/stylist"
 	"github.com/bimalmithran/virtualwardrobe/backend/internal/vision"
 	"github.com/bimalmithran/virtualwardrobe/backend/internal/wardrobe"
 )
@@ -79,6 +80,14 @@ func run(log *slog.Logger) error {
 		log.Info("cloud vision disabled", "built_with_onnx", vision.Available, "VISION_ENABLED", cfg.VisionEnabled)
 	}
 
+	var streamer stylist.Streamer = stylist.Local{WordDelay: 25 * time.Millisecond}
+	if cfg.AnthropicAPIKey != "" {
+		streamer = stylist.NewClaude(cfg.AnthropicAPIKey, cfg.StylistModel)
+		log.Info("stylist uses Claude", "model", cfg.StylistModel)
+	} else {
+		log.Info("stylist uses the built-in basic stylist; set ANTHROPIC_API_KEY for the AI stylist")
+	}
+
 	srv := &http.Server{
 		Addr: cfg.Addr,
 		Handler: httpapi.NewRouter(httpapi.Deps{
@@ -86,6 +95,7 @@ func run(log *slog.Logger) error {
 			Profiles:      wardrobe.NewProfiles(users),
 			Privacy:       privacy,
 			Vision:        cloudVision,
+			Stylist:       wardrobe.NewStylist(streamer, privacy, nil),
 			Devices:       devices,
 			Items:         closet,
 			Deleter:       closet,

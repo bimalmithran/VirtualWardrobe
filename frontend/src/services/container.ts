@@ -3,7 +3,9 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { configuredApiUrl, FetchHttpClient } from '../api/httpClient';
 import { StoredDeviceIdentity } from '../api/installationId';
+import { StylistApi, type StylistRemote } from '../api/stylistApi';
 import { WardrobeApi, type SimilarityRemote } from '../api/wardrobeApi';
+import { SqliteChatRepository, type ChatRepository } from '../storage/chatRepository';
 import { isLanguage } from '../i18n/I18nProvider';
 import { ConsentService } from '../privacy/consent';
 import { secureKeyValue, type KeyValueStore } from '../storage/keyValue';
@@ -49,6 +51,10 @@ export interface AppServices {
   /** Keystore-backed settings store (language, flags). */
   settings: KeyValueStore;
   eraser: LocalEraser;
+  /** Stylist conversation, kept on the phone. */
+  chat: ChatRepository;
+  /** Cloud AI stylist (SSE); null without a backend. */
+  stylist: StylistRemote | null;
   pipeline: GarmentPipeline;
   /** Photos of the user and the on-device analysis that reads their colouring. */
   self: { photos: SelfPhotoRepository; analyzer: SelfAnalyzer; pose: PoseEstimator };
@@ -123,7 +129,8 @@ export function createAppServices(db: SQLiteDatabase, apiUrl = configuredApiUrl(
     const saved = await kv.get('ui_language_v1');
     return isLanguage(saved) ? saved : 'en';
   };
-  const api = apiUrl ? new WardrobeApi(new FetchHttpClient(apiUrl, identity), identity, language) : null;
+  const http = apiUrl ? new FetchHttpClient(apiUrl, identity) : null;
+  const api = http ? new WardrobeApi(http, identity, language) : null;
   const consent = new ConsentService(kv, api, async () => {
     await closet.resetSyncState();
     await profiles.clearSynced();
@@ -173,6 +180,8 @@ export function createAppServices(db: SQLiteDatabase, apiUrl = configuredApiUrl(
     similarity: api,
     settings: kv,
     eraser,
+    chat: new SqliteChatRepository(db),
+    stylist: http ? new StylistApi(http) : null,
     self: { photos: selfPhotos, analyzer: selfAnalyzer, pose },
     pipeline,
     models: { ...models, router },

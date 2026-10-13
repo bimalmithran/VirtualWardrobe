@@ -60,6 +60,7 @@ type Deps struct {
 	LLMStats ModelStatsReporter
 	Privacy  PrivacyService
 	Vision   VisionService
+	Stylist  StylistService
 	// Devices authenticates /api requests. Nil disables auth (AUTH_REQUIRED=false).
 	Devices DeviceRegistry
 	// Serves stored images; mounted at ImagesPrefix.
@@ -81,6 +82,7 @@ func NewRouter(d Deps) http.Handler {
 	privacyH := &privacyHandler{privacy: d.Privacy, errs: errs}
 	deviceH := &deviceHandler{reg: d.Devices, errs: errs}
 	visionH := &visionHandler{vision: d.Vision, errs: errs}
+	stylistH := &stylistHandler{stylist: d.Stylist, errs: errs, log: d.Log}
 
 	// Routes that act for a user go through device authentication.
 	api := http.NewServeMux()
@@ -96,6 +98,7 @@ func NewRouter(d Deps) http.Handler {
 	api.HandleFunc("DELETE /api/outfits/{client_outfit_id}", outfitH.delete)
 	api.HandleFunc("POST /api/vision/segment", visionH.segment)
 	api.HandleFunc("POST /api/vision/embed", visionH.embed)
+	api.HandleFunc("POST /api/stylist/chat", stylistH.chat)
 	api.HandleFunc("POST /api/llm/complete", llmH.complete)
 	api.HandleFunc("GET /api/llm/models", llmH.models)
 

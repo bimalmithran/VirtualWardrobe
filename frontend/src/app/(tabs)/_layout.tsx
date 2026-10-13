@@ -34,6 +34,7 @@ export default function TabLayout() {
     >
       <Tabs.Screen name="index" options={{ title: t('tabs.closet'), tabBarIcon: icon('grid-outline') }} />
       <Tabs.Screen name="outfits" options={{ title: t('tabs.outfits'), tabBarIcon: icon('shirt-outline') }} />
+      <Tabs.Screen name="stylist" options={{ title: t('tabs.stylist'), tabBarIcon: icon('chatbubbles-outline') }} />
       <Tabs.Screen name="add" options={{ title: t('tabs.add'), headerShown: false, tabBarIcon: icon('add-circle-outline') }} />
       <Tabs.Screen name="shop" options={{ title: t('tabs.shop'), headerShown: false, tabBarIcon: icon('scan-outline') }} />
       <Tabs.Screen name="profile" options={{ title: t('tabs.twin'), tabBarIcon: icon('person-outline') }} />
