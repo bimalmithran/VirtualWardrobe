@@ -1,7 +1,8 @@
-import type { KeyValueStore } from './keyValue';
+import type { KeyValueStore } from './keyValue.types';
 
-export type { KeyValueStore } from './keyValue';
-export { readJson } from './keyValue';
+// Not from './keyValue': on web that path resolves to this file.
+export type { KeyValueStore } from './keyValue.types';
+export { readJson } from './readJson';
 
 /**
  * expo-secure-store has no web implementation. Browsers offer no keystore to JS, so web

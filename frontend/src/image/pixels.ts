@@ -1,5 +1,5 @@
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
-import { File } from 'expo-file-system';
+import { deleteFile, readBytes } from '../platform/files';
 import { AlphaType, ColorType, ImageFormat, Skia } from '@shopify/react-native-skia';
 
 /** Straight (non-premultiplied) RGBA, 4 bytes per pixel, row-major. */
@@ -18,11 +18,10 @@ export async function loadRGBA(uri: string, size: { width?: number; height?: num
   // PNG avoids a second round of JPEG artefacts on the image the models see.
   const saved = await ref.saveAsync({ format: SaveFormat.PNG });
   ref.release(); // free the native bitmap now rather than at GC time
-  const tmp = new File(saved.uri);
   try {
-    return decodeToRGBA(await tmp.bytes());
+    return decodeToRGBA(await readBytes(saved.uri));
   } finally {
-    if (tmp.exists) tmp.delete();
+    deleteFile(saved.uri);
   }
 }
 

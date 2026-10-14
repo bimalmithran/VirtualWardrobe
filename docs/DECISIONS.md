@@ -246,9 +246,42 @@ deliberately left out.
   **No in-app payment/escrow** — buyer and seller settle directly, with safety advice
   shown. Payments would need a marketplace PSP (e.g. Razorpay Route) and KYC.
 
-## 6. Remaining work
+## 6. Cross-platform core
 
-- **Web target** (section 6 of the original list): react-native-web, `onnxruntime-web` for
-  `ort.web.ts`, a canvas `pixels.web.ts`, web image storage, and COOP/COEP headers for
-  SQLite wasm. The `.web.ts` capability probe and key-value store already exist.
-- **Docs**: README/INSTALL for the new env vars.
+- **One codebase for Android, web and iOS.** Platform differences live in `*.web.ts` siblings
+  that Metro picks per platform: `ml/ort.web.ts`, `ml/modelDownloader.web.ts`,
+  `ml/deviceCapabilities.web.ts`, `storage/keyValue.web.ts`, `storage/garmentImages.web.ts`,
+  `platform/files.web.ts`. Feature code never imports `expo-file-system` or SecureStore
+  directly any more.
+- **Web ML**: ONNX Runtime Web 1.30 (WebNN → WebGPU → Wasm, multi-threaded when the page is
+  cross-origin isolated), loaded by script tag from the app's own origin. A postinstall step
+  copies it and Skia's CanvasKit into `public/`, at the versions in `package-lock.json`, so
+  there is no third-party CDN and COEP doesn't block it. Models are cached in Cache Storage,
+  size-verified like on the phone. Verified in headless Chromium: isolated page, 4 threads,
+  MoveNet ran, and WebGPU fell back to Wasm cleanly.
+- **Web images** are stored as ≤768 px WebP data URIs in SQLite (browsers have no app file
+  system); **web secrets** in localStorage (no keystore exists in browsers).
+- **Skia on web** must load CanvasKit before any module that imports Skia is evaluated, so
+  `index.web.js` loads it, then `require`s the router entry. A dynamic `import()` doesn't work:
+  single-output web exports have no async chunk loader.
+- **Hosting headers** `Cross-Origin-Embedder-Policy: credentialless` and
+  `Cross-Origin-Opener-Policy: same-origin` are set in the dev server (`metro.config.js`) and for
+  EAS Hosting (`app.json`). Other hosts must add them (INSTALL.md).
+- **Purchases on web** are not offered (RevenueCat's mobile SDK); Premium bought on a phone
+  applies on the web through the server entitlement.
+- **iOS readiness**: bundle id, camera/photo permission strings from the config plugins, Core ML
+  as an accelerator option, `ITSAppUsesNonExemptEncryption: false`, safe-area insets throughout
+  (`SafeAreaProvider` + `useSafeAreaInsets`), RevenueCat iOS key support. Not built or run on
+  iOS here (no macOS); `npx expo run:ios` or EAS is the next step.
+- **SSE** uses `expo/fetch` on every platform (see 5b).
+
+## 7. Verified vs not verified
+
+- Verified here: TypeScript, ESLint, 112 Jest tests; `go vet` (with and without `-tags onnx`) and
+  Go tests; every new API end to end against Postgres in Docker (device auth, consent, export,
+  erasure, cloud vision with real RMBG and MobileCLIP, SSE chat, quotas, RevenueCat webhook,
+  affiliate redirects, listings and inquiries); the web build booting in Chromium through
+  consent → Digital Twin → tabs → stylist chat; Android JS bundle export; `expo-doctor` 21/21.
+- Not verified here: the app on a physical phone (no Android SDK/emulator in this environment),
+  the live Claude API (no key), real RevenueCat purchases (no store accounts), MoveNet placement
+  on a real photo of a person, and iOS builds.

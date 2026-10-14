@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { File, Paths } from 'expo-file-system';
+import { deleteFile, writeCacheFile } from '../../platform/files';
 import { router } from 'expo-router';
 
 import type { ModelKey } from '../../config/models';
@@ -119,9 +119,9 @@ export function createAddPhotoMode(deps: { photos: GarmentPhotos; sync: CloudSyn
  * user says they bought it.
  */
 export function createShopMode(deps: { wearer: Wearer }): IngestionMode {
-  let preview: File | null = null;
+  let preview: string | null = null;
   const discard = () => {
-    if (preview?.exists) preview.delete();
+    if (preview) deleteFile(preview);
     preview = null;
   };
   return {
@@ -136,10 +136,9 @@ export function createShopMode(deps: { wearer: Wearer }): IngestionMode {
     asksCategory: false,
     async complete(result) {
       discard();
-      preview = new File(Paths.cache, `shop-${Date.now()}.png`);
-      preview.write(result.png);
+      preview = writeCacheFile(`shop-${Date.now()}.png`, result.png);
       const match = scoreForWearer(result.colorHex, deps.wearer);
-      return { previewUri: preview.uri, match, garment: null };
+      return { previewUri: preview, match, garment: null };
     },
     discard,
     exit() {},

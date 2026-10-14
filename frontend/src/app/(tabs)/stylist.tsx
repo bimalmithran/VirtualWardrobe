@@ -56,8 +56,8 @@ export default function Stylist() {
           <View style={[ui.card, styles.notice]}>
             <Text style={ui.body}>
               {stylist
-                ? 'You are chatting with the basic stylist, which runs on this phone. The AI stylist understands any question; it sends a text summary of your closet (no photos) to our AI provider.'
-                : 'You are chatting with the basic stylist, which runs on this phone.'}
+                ? 'You are chatting with the basic stylist, which runs on this device. The AI stylist understands any question; it sends a text summary of your closet (no photos) to our AI provider.'
+                : 'You are chatting with the basic stylist, which runs on this device.'}
             </Text>
             {stylist && <Text style={styles.link} onPress={enableAi} accessibilityRole="button">Turn on the AI stylist</Text>}
           </View>

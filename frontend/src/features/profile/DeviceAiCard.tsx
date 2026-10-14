@@ -7,7 +7,7 @@ import { useServices } from '../../services/ServicesProvider';
 import { colors, ui } from '../../theme';
 
 const TIER_LABEL = { high: 'High-end device', mid: 'Mid-range device', low: 'Entry-level device' } as const;
-const WHERE = { device: 'on this phone', cloud: 'in the cloud' } as const;
+const WHERE = { device: 'on this device', cloud: 'in the cloud' } as const;
 
 /** Shows the detected device tier and where each model runs, with the NPU opt-in. */
 export function DeviceAiCard() {

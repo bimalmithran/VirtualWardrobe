@@ -8,7 +8,10 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.bimal.virtualwardrobe"
+      "bundleIdentifier": "com.bimal.virtualwardrobe",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.bimal.virtualwardrobe",
@@ -60,12 +63,25 @@
           }
         }
       ],
-      "expo-router",
+      [
+        "expo-router",
+        {
+          "headers": {
+            "Cross-Origin-Embedder-Policy": "credentialless",
+            "Cross-Origin-Opener-Policy": "same-origin"
+          }
+        }
+      ],
       "expo-font",
       "expo-localization",
       "expo-sharing",
       "expo-web-browser"
     ],
-    "scheme": "virtualwardrobe"
+    "scheme": "virtualwardrobe",
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/favicon.png"
+    }
   }
 }

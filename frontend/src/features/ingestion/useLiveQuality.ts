@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { CameraView } from 'expo-camera';
-import { File } from 'expo-file-system';
+import { deleteFile } from '../../platform/files';
 
 import { loadRGBA } from '../../image/pixels';
 import { assessQuality } from '../../vision/junkFilter';
@@ -37,10 +37,7 @@ export function useLiveQuality(camera: RefObject<CameraView | null>, active: boo
             const report = assessQuality(img);
             if (!cancelled) setQuality(report.headline ? { state: 'issue', headline: report.headline } : { state: 'ok' });
           }
-          if (frame) {
-            const f = new File(frame.uri);
-            if (f.exists) f.delete();
-          }
+          if (frame) deleteFile(frame.uri);
         } catch {
           // The camera may be busy (focus, capture); try again next tick.
         }

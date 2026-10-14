@@ -82,12 +82,12 @@ export function planExecution(c: Capabilities, inputs: PlanInputs): ExecutionPla
     } else {
       reasons.push(
         inputs.cloudAvailable
-          ? 'Low-tier device without cloud-processing consent: running on the phone, which may be slow.'
-          : 'Low-tier device and no server configured: running on the phone, which may be slow.',
+          ? 'Low-tier device without cloud-processing consent: running on this device, which may be slow.'
+          : 'Low-tier device and no server configured: running on this device, which may be slow.',
       );
     }
   } else {
-    reasons.push(tier === 'high' ? 'High-tier device: all AI runs on the phone.' : 'Mid-tier device: AI runs on the phone, one model at a time.');
+    reasons.push(tier === 'high' ? 'High-tier device: all AI runs on this device.' : 'Mid-tier device: AI runs on this device, one model at a time.');
   }
 
   const accelerators = c.accelerators.filter((a) => inputs.preferNpu || !['nnapi', 'coreml', 'webnn'].includes(a));

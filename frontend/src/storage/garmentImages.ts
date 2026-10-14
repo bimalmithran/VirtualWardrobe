@@ -2,9 +2,9 @@ import { Buffer } from 'buffer';
 import { Directory, File, Paths } from 'expo-file-system';
 
 import { makeThumbnail } from '../image/pixels';
+import { UPLOAD_MAX_SIDE } from './garmentImages.constants';
 
-/** Longest side of the image cloud backup uploads. */
-export const UPLOAD_MAX_SIDE = 512;
+export { UPLOAD_MAX_SIDE } from './garmentImages.constants';
 
 /** Reads a stored cutout for upload. Sync depends on this, not on the full store. */
 export interface GarmentImageReader {
@@ -26,7 +26,9 @@ export interface GarmentImageStore extends GarmentImageReader {
 export class FileGarmentImageStore implements GarmentImageStore {
   private readonly dir: Directory;
 
-  constructor(dir = new Directory(Paths.document, 'closet')) {
+  /** `name` is the folder under the app's documents directory. */
+  constructor(name = 'closet') {
+    const dir = new Directory(Paths.document, name);
     dir.create({ intermediates: true, idempotent: true });
     this.dir = dir;
   }

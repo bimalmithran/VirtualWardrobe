@@ -78,7 +78,7 @@ function ReleaseModelsInBackground() {
     const warning = AppState.addEventListener('memoryWarning', release);
     return () => {
       sub.remove();
-      warning.remove();
+      warning?.remove(); // react-native-web has no memoryWarning event and returns nothing
     };
   }, [memory]);
   return null;

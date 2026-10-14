@@ -5,12 +5,9 @@ import { errorMessage } from '../lib/errors';
 import type { ModelStatusStore } from './modelStatus';
 import { uriToPath } from './ort';
 
-/** Where model files live. The session pool depends on this, not on the downloader. */
-export interface ModelFileLocator {
-  isDownloaded(key: ModelKey): boolean;
-  /** Filesystem path (not a file:// URI) as ONNX Runtime expects. */
-  path(key: ModelKey): string;
-}
+import type { ModelFileLocator } from './modelDownloader.types';
+
+export type { ModelFileLocator } from './modelDownloader.types';
 
 /** Fetches model files once and verifies their size, reporting progress to the status store. */
 export class ModelDownloader implements ModelFileLocator {

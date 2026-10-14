@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Alert, Image, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Buffer } from 'buffer';
-import { File } from 'expo-file-system';
+import { readBytes } from '../../platform/files';
 
 import type { ListingCondition } from '../../api/commerceApi';
 import { ApiError } from '../../api/httpClient';
@@ -68,7 +68,7 @@ export default function Sell() {
     setBusy(true);
     try {
       await sync.syncAll(); // the server needs the profile before it accepts a listing
-      const png = await new File(garment.imageUri).bytes();
+      const png = await readBytes(garment.imageUri);
       const listing = await commerce.createListing({
         client_item_id: garment.id,
         title: form.title.trim(),

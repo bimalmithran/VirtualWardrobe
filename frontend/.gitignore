@@ -1,0 +1,5 @@
+
+# Web runtimes copied by scripts/copy-web-runtimes.js
+public/canvaskit.wasm
+public/ort/
+dist-web/

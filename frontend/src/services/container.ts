@@ -1,4 +1,3 @@
-import { Directory, Paths } from 'expo-file-system';
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { configuredApiUrl, FetchHttpClient } from '../api/httpClient';
@@ -174,7 +173,7 @@ export function createAppServices(db: SQLiteDatabase, apiUrl = configuredApiUrl(
     extractPalette,
     assessQuality,
   });
-  const selfImages = new FileGarmentImageStore(new Directory(Paths.document, 'me'));
+  const selfImages = new FileGarmentImageStore('me');
   const selfPhotos = new SqliteSelfPhotoRepository(db, selfImages);
   const eraser = new DeviceEraser(db, [images, selfImages], [() => profiles.clear(), () => consent.clear(), () => identity.reset()]);
   return {

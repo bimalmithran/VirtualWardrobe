@@ -5,7 +5,7 @@ import { errorMessage } from '../lib/errors';
 import type { ModelFileLocator } from './modelDownloader';
 import type { InferenceRequest, InferenceResult, ModelMemory, ModelRunner } from './modelRunner';
 import type { ModelStatusStore } from './modelStatus';
-import { getOrt } from './ort';
+import { getOrt, prepareOrt } from './ort';
 
 /**
  * Owns every ONNX session. Guarantees:
@@ -66,6 +66,7 @@ export class SessionPool implements ModelRunner, ModelMemory {
 
     this.status.set(key, { state: 'loading' });
     try {
+      await prepareOrt();
       const session = await this.createSession(key);
       this.sessions.set(key, session);
       this.status.set(key, { state: 'ready' });

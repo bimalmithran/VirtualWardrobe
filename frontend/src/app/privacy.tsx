@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, Stack } from 'expo-router';
-import { File, Paths } from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
+import { offerFile, writeCacheFile } from '../platform/files';
 
 import { Button } from '../components/Button';
 import { Checkbox } from '../components/Checkbox';
@@ -56,13 +55,9 @@ export default function PrivacySettings() {
     run('export', async () => {
       if (!api) return;
       const data = await api.exportCloudData();
-      const file = new File(Paths.cache, `virtualwardrobe-export-${Date.now()}.json`);
-      file.write(JSON.stringify(data, null, 2));
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(file.uri, { mimeType: 'application/json', dialogTitle: t('privacy.export') });
-      } else {
-        Alert.alert(t('privacy.export'), file.uri);
-      }
+      const name = `virtualwardrobe-export-${Date.now()}.json`;
+      const uri = writeCacheFile(name, JSON.stringify(data, null, 2));
+      if (!(await offerFile(uri, 'application/json', name))) Alert.alert(t('privacy.export'), uri);
     });
 
   const eraseCloud = () =>

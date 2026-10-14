@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| `frontend/` | Expo SDK 57 Android app. All computer vision runs on the phone: junk filter, background removal (RMBG-1.4), K-Means colour, 512-d MobileCLIP embedding, fusion of several photos per garment, and personal colour analysis from photos of the user. |
-| `backend/` | Go 1.25 API on PostgreSQL 17 + pgvector. It stores what the phone produced (PNG cutout, hex colour, vector), runs similarity search over it, and hosts the LLM gateway. |
+| `frontend/` | Expo SDK 57 app for Android and the web (iOS-ready). Computer vision runs on the device (ONNX Runtime; WebGPU/WebNN/Wasm in browsers), with a consented cloud fallback for low-end phones: junk filter, background removal (RMBG-1.4), K-Means colour, 512-d MobileCLIP embedding, fusion of several photos per garment, and personal colour analysis from photos of the user. |
+| `backend/` | Go 1.26 API on PostgreSQL 17 + pgvector: device-authenticated sync and similarity search, DPDP consent ledger and data rights, cloud vision (same ONNX models), the streaming AI stylist (Claude), RevenueCat entitlements and quotas, affiliate links and resale listings. |
 | `docker-compose.yml` | Runs the backend stack and, as an opt-in profile, builds the APK. |
 
 The app is local-first. With no backend configured, or while offline, everything still works,
@@ -28,19 +28,21 @@ after changing it.
 
 ## Features
 
-| Tab / screen | What it does |
+| Area | What it does |
 |---|---|
-| **Closet** | Grid of background-removed garments. Filter by category, favourites or untagged. Long-press to remove. |
-| **Garment** | Photo strip: add more photos of the same garment (back, close-up, other light) and its colour and style vector are fused across all of them; long-press a photo to remove it. Category tag, ♥ favourite, "Wore it today" with wear count and last-worn date, colour breakdown, a "suits you" score (undertone, plus your season palette once you have added photos of yourself), on-device and cloud (pgvector) similar items. |
-| **Outfits** | Up to three suggested looks (top + bottom + best shoes) ranked by colour harmony, how well the pieces near your face suit you (Digital Twin undertone, plus season palette and light-dark contrast when you have photos of yourself) and what you haven't worn in the last two days. Save a suggestion or build your own, see its live score, and mark it worn. |
-| **Add** | Camera → junk filter → background removal → K-Means colour → MobileCLIP vector, then tag the category on the result screen, and optionally add more photos of the same garment. |
-| **Live Shop** | Scan a shirt in a store and get its match score against your undertone and, if you have added photos of yourself, your season palette. Nothing is saved. |
-| **Twin** | Edit the Digital Twin, open **Your colours**, and manage on-device model memory. |
-| **Your colours** (from Twin or Outfits) | Take a selfie or upload photos of yourself. On the phone only, the app cuts you out (RMBG), finds skin pixels and reads skin tone, undertone, depth (ITA°) and skin-to-hair contrast, combined across photos into a colour season and palette. Shows the closet ranked by how well each piece suits you and the palette colours your closet is missing, and offers to apply the detected undertone to the Twin. Outfit scores, garment match scores and Live Shop then use your palette and contrast too. The photos are never uploaded. |
+| **Consent & privacy** | First-launch bottom sheet: itemised, unticked-by-default purposes (core required; cloud backup, cloud processing, AI stylist, analytics optional), English / हिन्दी / മലയാളം, Privacy Notice and Grievance Officer. **Twin → Privacy & data** changes or withdraws consent, exports server data, and erases it (server or phone). Withdrawing cloud backup erases the server copy. |
+| **Digital Twin** | Height, body shape (suggested from optional bust/waist/hip/shoulder measurements), torso length, undertone, and an optional hand-picked 12-season palette. Encrypted on the device (SecureStore) and synced when cloud backup is on. |
+| **Capture** | Device-tier detection picks where models run (on-device, or hybrid with cloud background removal on low-end phones). Live "Too blurry / Needs more light" feedback, histogram + Laplacian junk filter, RMBG cutout cropped tight, K-Means colours, pattern (solid/striped/checked/printed/textured), silhouette, letterboxed MobileCLIP vector. |
+| **Closet** | Grid of cutouts, filters (Tops, Bottoms, Outerwear, Footwear, Indian Ethnic Wear, Accessories, favourites, untagged, orphans). Garment page: photo strip, type, pattern, occasions, weather, brand, size, price, colour swatches, wear history with cost per wear, orphan warning, similar items, try-on, build outfits, list for sale. |
+| **Outfits** | Pick a piece to build around (or any), an occasion and weather (defaults to India's season); a carousel of complete looks (western, kurta sets, sarees/lehengas…) with bars for colour harmony, suits-you, occasion and season. "Complete the look" when a look lacks shoes or a layer. |
+| **Stylist** | Chat ("What should I wear to a rainy dinner tonight?") with streamed replies and tap-to-view outfit cards built only from your closet. Claude via SSE with the AI stylist consent, otherwise an on-device basic stylist. |
+| **Live Shop** | Scan a garment in a store: category guessed from your closet, personal match (colour vs your colouring, cut vs your body shape), "you already own 3 like this", would-be-orphan alert, 3–5 outfits with your closet, try-on, "I bought it". |
+| **Try-on** | The garment placed on your own photo by on-device MoveNet pose estimation, or on an avatar generated from your Digital Twin, showing silhouette and length. |
+| **Your colours** | Selfies analysed on the phone only into undertone, depth, contrast and a 12-season palette; closet ranked by what suits you, and colours to add. |
+| **Premium** | RevenueCat subscriptions: unlimited try-on and AI stylist (free: 3 and 10 a day), packing lists, wardrobe cost-per-wear insights. |
+| **Marketplace** | List a closet item for sale in one tap (title, description and price pre-filled), browse others' listings, message sellers through relayed inquiries, share a public listing page. |
 
-Category edits, added or removed garment photos (as the re-fused colour and vector), removed
-garments and outfits all sync to the backend (see below). Photos of the user never leave the phone,
-and extra garment photos stay on it too: the server keeps each garment's main cutout.
+All decisions behind these are recorded in [docs/DECISIONS.md](docs/DECISIONS.md).
 
 ## Frontend (`frontend/`)
 
@@ -212,6 +214,14 @@ on `outfit_items`. An outfit left with no garments is deleted.
 | `POST /api/wardrobe/search` | `{embedding[512], user_id?, limit?}` | Top 5 by default (max 50) by cosine similarity via the HNSW index. With `user_id` set, pgvector 0.8's iterative scan keeps the filter from returning too few rows. |
 | `POST /api/llm/complete` | `{prompt, max_output_tokens?, min_quality?, cost_ceiling_usd?}` | LLM gateway demo (mock providers). 422 when no model fits the ceiling, 502 when every eligible model failed. |
 | `GET /api/llm/models` | | EMA latency, sample count and cooldown state for each model. |
+| `POST /api/devices/enroll` | headers only | Binds the install's bearer token (SHA-256 stored) to its user id. Every other `/api` route requires `X-User-ID` + `Authorization: Bearer`, and acts only for that user. |
+| `POST /api/users/consent` | `{notice_version, language, purposes}` | Appends to the consent ledger; the newest record is in force. |
+| `GET /api/users/me/export` · `DELETE /api/users/me` | | DPDP access and erasure (profile, items, images, outfits, consents, listings). |
+| `POST /api/vision/segment` · `/embed` | `{image_base64}` | Cloud background removal (soft-mask PNG) and 512-d vector; needs the cloud-processing consent; 503 until models load. |
+| `POST /api/stylist/chat` | `{messages, closet, candidates, wearer, context}` | `text/event-stream` of `delta` / `outfit` / `done` / `error`. Needs the AI stylist consent; free plan 10/day (402). |
+| `GET /api/me/entitlements` · `POST /api/webhooks/revenuecat` | | Premium status and today's usage; RevenueCat events (shared-secret auth, idempotent). |
+| `POST /api/affiliate/recommendations` · `GET /go/{token}` | `{needs[]}` | Product cards for outfit gaps; signed, logged redirects to partner stores. |
+| `POST/GET /api/listings`, `GET/PATCH /api/listings/{id}`, `POST/GET /api/listings/{id}/inquiries`, `GET /l/{id}` | | Resale listings, buyer inquiries (seller-only), public share page. |
 | `GET /healthz` | | Checks the database connection. |
 | `GET /uploads/...` | | Stored PNGs. The database stores host-free paths, and responses resolve them against `PUBLIC_BASE_URL` or the request host. |
 
@@ -244,7 +254,7 @@ failures. To add real providers, implement `Provider`. To change the routing rul
 
 ### Without Docker
 
-Requires Go 1.25+ and PostgreSQL with pgvector 0.8 or later.
+Requires Go 1.26+ (and, for cloud vision, cgo with `-tags onnx` and the ONNX Runtime 1.29 shared library) and PostgreSQL with pgvector 0.8 or later.
 
 ```bash
 cd backend

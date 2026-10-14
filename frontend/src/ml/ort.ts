@@ -37,3 +37,6 @@ export function getOrt(): Ort {
 export function uriToPath(uri: string): string {
   return decodeURIComponent(uri.replace(/^file:\/\//, ''));
 }
+
+/** Loads the runtime where that is asynchronous (web); a no-op on phones. */
+export async function prepareOrt(): Promise<void> {}

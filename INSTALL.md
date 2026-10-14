@@ -87,6 +87,25 @@ docker compose exec db psql -U wardrobe -d wardrobe
 | `POSTGRES_PASSWORD` | `wardrobe` | Database password. Set it before the first `up`; changing it later needs `down -v`. |
 | `PUBLIC_BASE_URL` | empty | Base for image URLs the API returns. Empty means use the address the phone called. |
 | `EXPO_PUBLIC_API_URL` | `http://192.168.1.9:8080` | Server address **baked into the APK** at build time. |
+| `AUTH_REQUIRED` | `true` | Every `/api` call must carry the install's device token. Only switch off for local experiments. |
+| `VISION_ENABLED` | `true` | Cloud background removal / style vectors for low-end phones (needs the user's consent). Models (~56 MB) download into the `models` volume on first boot. |
+| `VISION_SEGMENTATION` | `rmbg-1.4` | `rmbg-1.4` (non-commercial licence, matches the app) or `isnet` (Apache-2.0, use for commercial deployments). |
+| `ANTHROPIC_API_KEY` | empty | Turns on the AI stylist (Claude). Empty = the built-in basic stylist. |
+| `STYLIST_MODEL` | `claude-opus-5-5` | Claude model for the stylist. |
+| `REVENUECAT_WEBHOOK_AUTH` | empty | The exact `Authorization` header value you set on the RevenueCat webhook. Without it purchases aren't recorded server-side. |
+| `AFFILIATE_SECRET` | random per boot | Signs shopping links; set a long random string so links survive restarts. |
+| `AMAZON_ASSOCIATE_TAG` | empty | Amazon Associates tracking id added to Amazon.in links. |
+| `AFFILIATE_LINK_WRAPPER` | empty | Affiliate-network deep link with a `{url}` placeholder (Cuelinks, EarnKaro, …) for Myntra/AJIO/Zara links. |
+| `AFFILIATE_PARTNERS` | `myntra,ajio,amazon,zara` | Stores to offer, in order. |
+
+App-side settings live in `frontend/.env` and are baked in at build time:
+
+| Variable | Meaning |
+|---|---|
+| `EXPO_PUBLIC_API_URL` | Server address (as above). |
+| `EXPO_PUBLIC_LEGAL_ENTITY`, `EXPO_PUBLIC_PRIVACY_URL` | Your company name and hosted privacy notice, shown in the consent sheet. |
+| `EXPO_PUBLIC_GRIEVANCE_NAME`, `_EMAIL`, `_PHONE`, `_ADDRESS` | Grievance Officer contact (DPDP). Until set, the privacy screens show a "not configured" warning. |
+| `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`, `_IOS_KEY` | RevenueCat public SDK keys. Without them the paywall shows plans as unavailable. |
 
 ---
 
@@ -125,12 +144,17 @@ No `adb`? Install Android platform-tools, e.g. `sudo pacman -S android-tools` on
 
 ### First launch
 
-1. **Digital Twin:** enter your height, body shape and skin undertone.
-2. **Model download:** on first use of **Add**, **Live Shop** or **Your colours**, the app
+1. **Consent:** choose your language, then tick what the app may do. Only *Keep my wardrobe on
+   this phone* is required; cloud backup, cloud processing, the AI stylist and analytics are
+   optional and off until ticked. Change them any time in **Twin → Privacy & data**.
+2. **Digital Twin:** enter your height, body shape and skin undertone. Measurements and a
+   12-season colour type are optional.
+3. **Model download:** on first use of **Add**, **Live Shop** or **Your colours**, the app
    downloads its on-device AI models once (about 56 MB: background removal 44 MB and MobileCLIP
    12 MB). Use Wi-Fi.
-3. **Camera permission:** allow it when asked.
-4. Photograph a garment on a plain background, then tag its category on the result screen.
+4. **Camera permission:** allow it when asked. The camera shows live feedback ("Too blurry,
+   hold still", "Needs more light") before you press the shutter.
+5. Photograph a garment on a plain background, then tag its category on the result screen.
    Tag at least one top and one bottom to get suggestions in the **Outfits** tab.
 
 ### Using the app
@@ -222,6 +246,40 @@ npm run build:apk               # eas build -p android --profile preview → dow
 ```
 
 ---
+
+## Run the web app
+
+The same app runs in a browser (Chrome, Edge or Firefox; WebGPU/WebNN are used when available,
+WebAssembly otherwise).
+
+```bash
+cd frontend
+npm ci                     # also copies the CanvasKit and ONNX Runtime Web files into public/
+npm run web                # dev server on http://localhost:8081
+npm run build:web          # static site in dist-web/ (dist/ holds the APK)
+```
+
+Host the exported folder on any static host **with these response headers** (SQLite and
+multi-threaded ONNX Runtime need a cross-origin-isolated page):
+
+```
+Cross-Origin-Embedder-Policy: credentialless
+Cross-Origin-Opener-Policy: same-origin
+```
+
+EAS Hosting applies them from `app.json`. Serve the site over HTTPS. On the web, photos and
+models stay in the browser (SQLite in the origin's private storage, models in Cache Storage),
+and Premium is bought in the mobile app.
+
+## Premium and shopping links (optional)
+
+1. **RevenueCat:** create a project with Google Play (and App Store) apps, an entitlement named
+   `premium`, and an offering with monthly/annual packages. Put the public SDK keys in
+   `frontend/.env` and rebuild. Add a webhook pointing at `https://<your-api>/api/webhooks/revenuecat`
+   with an Authorization header value, and put the same value in `REVENUECAT_WEBHOOK_AUTH`.
+2. **Affiliate links:** set `AMAZON_ASSOCIATE_TAG` and/or `AFFILIATE_LINK_WRAPPER`, plus a fixed
+   `AFFILIATE_SECRET`. To show real products, load a partner feed into the `affiliate_products`
+   table (partner, title, category, color_hex, price_inr, image_url, url).
 
 ## Troubleshooting
 
