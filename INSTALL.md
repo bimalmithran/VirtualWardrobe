@@ -166,6 +166,11 @@ too dark) are skipped rather than stopping the batch. The summary lists every ph
 skipped or failed, offers **Add skipped photos anyway**, and opens each new garment so you can tag
 its category. Picking just one photo works as before. **Live Shop** stays one photo at a time.
 
+**Removing garments.** In the **Closet**, long-press a garment to start selecting; tap more to
+add them (or **Select all**, which follows the current filter), then **Delete (N)** and confirm
+once. **Cancel** or the back button leaves selection. Deletes reach your cloud backup on the next
+sync.
+
 **Several photos of one garment.** One photo's colour depends on its light and angle. Add more
 shots (the back, a close-up, the garment in other light) and the app combines them into a truer
 colour and style vector, which improves outfit suggestions and "similar items".
