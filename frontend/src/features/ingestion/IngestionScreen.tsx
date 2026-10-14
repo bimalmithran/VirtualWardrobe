@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { ScrollView, View } from 'react-native';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CameraCapture } from '../../components/CameraCapture';
@@ -8,6 +9,7 @@ import { useModelStatuses } from '../../ml/modelStatus';
 import { deviceModels, useExecutionPlan } from '../../ml/useExecutionPlan';
 import { useServices } from '../../services/ServicesProvider';
 import { ui } from '../../theme';
+import { BatchProgress, BatchSummary } from './components/BatchViews';
 import { IngestionResult } from './components/IngestionResult';
 import { screenStyles } from './components/screenStyles';
 import { Centered, ErrorPanel, JunkWarning, StepProgress } from './components/StatusViews';
@@ -30,7 +32,7 @@ export function IngestionScreen({
   const statuses = useModelStatuses(models.status);
   const plan = useExecutionPlan(models.router);
   const mode = useIngestionMode(modeKey, garmentId);
-  const { state, capture, processAnyway, reset } = useIngestion(mode, pipeline);
+  const { state, capture, captureMany, processAnyway, reset } = useIngestion(mode, pipeline);
   const insets = useSafeAreaInsets();
 
   const page = (children: ReactNode, scroll = false) => {
@@ -49,7 +51,9 @@ export function IngestionScreen({
 
   switch (state.kind) {
     case 'capture':
-      return <CameraCapture onCapture={capture} hint={mode.copy.captureHint} />;
+      return (
+        <CameraCapture onCapture={capture} onPickMany={mode.allowsBatch ? captureMany : undefined} hint={mode.copy.captureHint} />
+      );
     case 'inspecting':
       return <Centered label="Checking photo quality…" />;
     case 'junk':
@@ -58,6 +62,34 @@ export function IngestionScreen({
       return page(<StepProgress steps={mode.steps} current={state.step} />);
     case 'error':
       return page(<ErrorPanel message={state.message} onRetry={reset} />);
+    case 'batch':
+      return page(<BatchProgress steps={mode.steps} index={state.index} total={state.total} step={state.step} items={state.items} />, true);
+    case 'batchDone': {
+      const { items } = state;
+      return page(
+        <BatchSummary
+          items={items}
+          copy={mode.copy}
+          onAgain={reset}
+          onExit={() => {
+            reset();
+            mode.exit();
+          }}
+          onAddSkipped={(skipped) =>
+            captureMany(
+              skipped.map((i) => i.photo),
+              { force: true, kept: items.filter((i) => !skipped.includes(i)) },
+            )
+          }
+          onOpen={
+            modeKey === 'closet'
+              ? (item) => item.outcome.garment && router.push({ pathname: '/garment/[id]', params: { id: item.outcome.garment.id } })
+              : undefined
+          }
+        />,
+        true,
+      );
+    }
     case 'done': {
       const { outcome } = state;
       if (modeKey === 'shop') {
@@ -94,7 +126,7 @@ export function IngestionScreen({
           }
           onExit={() => {
             reset();
-            mode.exit(outcome);
+            mode.exit();
           }}
         />,
         true,

@@ -104,6 +104,17 @@ deliberately left out.
 - **Light payload**: cloud backup uploads a ≤512 px WebP thumbnail (Skia encoder, keeps alpha;
   ~20–60 KB) with the vector, colours and tags, instead of the 1–3 MB PNG. The server now
   accepts PNG/WebP/JPEG by signature.
+- **Multi-photo gallery pick** (Add tab and add-photo screen, up to 20). Photos run strictly
+  in sequence through the same inspect → process → complete steps as a single capture, each
+  dropping its working image before the next is decoded, so peak memory equals one photo's no
+  matter how many are picked. Quality-check failures are skipped and listed rather than asked
+  about one by one (a 20-photo batch shouldn't stall on a prompt); "Add skipped anyway" re-runs
+  just those. Live Shop keeps single capture because its value is the per-item verdict. Category
+  tagging moved to the garment page for batches; a per-row picker made the summary too long.
+- **ONNX Runtime native version is pinned** (patch to `onnxruntime-react-native`'s gradle file).
+  Upstream resolves `onnxruntime-android:latest.integration`, which by now bundled 1.31 under a
+  1.24.3 JSI bridge and aborted natively in `Ort::Session` creation on the Motorola Edge 20 Pro.
+  A native abort can't be caught in JS, so the CPU retry in `SessionPool` never got a chance.
 
 ## 3. Wardrobe management
 

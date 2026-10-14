@@ -9,16 +9,21 @@ import type { Photo } from '../vision/pipeline';
 import { colors, ui } from '../theme';
 import { Button } from './Button';
 
+/** Most photos one gallery pick may hand over; each is processed in turn. */
+export const MAX_GALLERY_PICK = 20;
+
 interface Props {
   hint: string;
   onCapture: (photo: Photo) => void;
+  /** Set to let the gallery pick several photos at once. A single pick still goes to onCapture. */
+  onPickMany?: (photos: Photo[]) => void;
   /** 'front' for selfies. Either way the user can flip. */
   initialFacing?: 'front' | 'back';
   /** Live blur/exposure feedback before the shutter is pressed. */
   liveQuality?: boolean;
 }
 
-export function CameraCapture({ hint, onCapture, initialFacing = 'back', liveQuality = true }: Props) {
+export function CameraCapture({ hint, onCapture, onPickMany, initialFacing = 'back', liveQuality = true }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const camera = useRef<CameraView>(null);
   const [facing, setFacing] = useState(initialFacing);
@@ -40,9 +45,15 @@ export function CameraCapture({ hint, onCapture, initialFacing = 'back', liveQua
   };
 
   const pick = async () => {
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
-    const asset = res.canceled ? null : res.assets[0];
-    if (asset) onCapture({ uri: asset.uri, width: asset.width, height: asset.height });
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 1,
+      ...(onPickMany && { allowsMultipleSelection: true, selectionLimit: MAX_GALLERY_PICK, orderedSelection: true }),
+    });
+    if (res.canceled) return;
+    const photos = res.assets.slice(0, MAX_GALLERY_PICK).map((a) => ({ uri: a.uri, width: a.width, height: a.height }));
+    if (photos.length > 1 && onPickMany) onPickMany(photos);
+    else if (photos[0]) onCapture(photos[0]);
   };
 
   if (!permission) return <View style={styles.fill} />;
@@ -56,7 +67,7 @@ export function CameraCapture({ hint, onCapture, initialFacing = 'back', liveQua
         ) : (
           <Button title="Open settings" onPress={() => Linking.openSettings()} />
         )}
-        <Button title="Choose from gallery instead" variant="secondary" onPress={pick} style={{ marginTop: 12 }} />
+        <Button title={onPickMany ? 'Choose photos from gallery' : 'Choose from gallery instead'} variant="secondary" onPress={pick} style={{ marginTop: 12 }} />
       </View>
     );
   }
@@ -85,8 +96,13 @@ export function CameraCapture({ hint, onCapture, initialFacing = 'back', liveQua
         </View>
       )}
       <View style={styles.controls}>
-        <Pressable onPress={pick} style={styles.sideButton} accessibilityLabel="Choose from gallery">
+        <Pressable
+          onPress={pick}
+          style={styles.sideButton}
+          accessibilityLabel={onPickMany ? `Choose up to ${MAX_GALLERY_PICK} photos from gallery` : 'Choose from gallery'}
+        >
           <Text style={styles.sideText}>Gallery</Text>
+          {onPickMany && <Text style={styles.sideSub}>up to {MAX_GALLERY_PICK}</Text>}
         </Pressable>
         <Pressable
           onPress={capture}
@@ -123,4 +139,5 @@ const styles = StyleSheet.create({
   shutterInner: { width: 58, height: 58, borderRadius: 29, backgroundColor: '#fff' },
   sideButton: { width: 76, alignItems: 'center' },
   sideText: { color: '#fff', fontWeight: '600' },
+  sideSub: { color: 'rgba(255,255,255,0.75)', fontSize: 11, marginTop: 2 },
 });

@@ -34,13 +34,21 @@ export function JunkWarning({ quality, onRetake, onProceed }: { quality: Quality
 }
 
 export function StepProgress({ steps, current }: { steps: IngestionMode['steps']; current: StepKey }) {
-  const currentIndex = steps.findIndex((s) => s.key === current);
   return (
     <>
       <Text style={ui.h1}>Processing on device</Text>
       <Text style={[ui.muted, screenStyles.gap]}>
         Nothing leaves your phone while it&apos;s processed. First run loads the models into memory, which takes a few seconds.
       </Text>
+      <StepList steps={steps} current={current} />
+    </>
+  );
+}
+
+/** The pipeline's steps, ticked off up to `current`. An unknown `current` leaves them all pending. */
+export function StepList({ steps, current }: { steps: IngestionMode['steps']; current: string }) {
+  const currentIndex = steps.findIndex((s) => s.key === current);
+  return (
       <View style={[ui.card, screenStyles.gap]}>
         {steps.map((s, i) => {
           const status = i < currentIndex ? 'done' : i === currentIndex ? 'active' : 'pending';
@@ -56,7 +64,6 @@ export function StepProgress({ steps, current }: { steps: IngestionMode['steps']
           );
         })}
       </View>
-    </>
   );
 }
 

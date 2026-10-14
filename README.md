@@ -78,7 +78,7 @@ Day to day, from `frontend/`: `npm ci`, `npm test`, `npm run typecheck`, `npm ru
 | Docker | `docker compose --profile apk run --rm apk` (run at the repo root) | No Expo account needed. The image in `frontend/docker/` has Node 22, JDK 17, Android SDK 36, build-tools 36.0.0 and NDK 27.1, the versions RN 0.86 pins. It runs `npm ci`, `expo prebuild` and `./gradlew assembleRelease`, with Gradle and npm caches kept in volumes. |
 | Dev client | `npm run build:dev`, then `npx expo start` | Hot reload on the phone. |
 
-`frontend/patches/` makes two fixes to `onnxruntime-react-native` 1.24.3, and `patch-package`
+`frontend/patches/` makes three fixes to `onnxruntime-react-native` 1.24.3, and `patch-package`
 reapplies them on every `npm install`/`npm ci`, so EAS and Docker builds both get them:
 
 - Gradle 9 removed the `VersionNumber` class its `build.gradle` used.
@@ -87,6 +87,12 @@ reapplies them on every `npm install`/`npm ci`, so EAS and Docker builds both ge
   `NativeModules.Onnxruntime` was `null`, and the app crashed on its first background removal. The
   patch deletes the file. Check with
   `npx expo-modules-autolinking react-native-config --platform android`, which must list the package.
+- Its `build.gradle` fetched the native runtime as `onnxruntime-android:latest.integration`, so
+  every fresh build bundled whatever ONNX Runtime was newest (1.31 by October 2026) under a JS
+  bridge compiled against 1.24.3. That mix aborted the app natively while loading the
+  background-removal model, right after a photo was taken or picked, with no JS error to catch.
+  The patch pins the AAR to 1.24.3. Bump it together with the npm package, never on its own.
+  Check with `unzip -p frontend/dist/*.apk lib/arm64-v8a/libonnxruntime.so | strings | grep -x '1\.[0-9]*\.[0-9]*'`.
 
 Drop each fix once upstream ships it.
 

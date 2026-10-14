@@ -1,9 +1,16 @@
 diff --git a/node_modules/onnxruntime-react-native/android/build.gradle b/node_modules/onnxruntime-react-native/android/build.gradle
-index 41b4359..ee29bf9 100644
+index 41b4359..038111b 100644
 --- a/node_modules/onnxruntime-react-native/android/build.gradle
 +++ b/node_modules/onnxruntime-react-native/android/build.gradle
-@@ -247,7 +247,7 @@ dependencies {
-     extractLibs "com.microsoft.onnxruntime:onnxruntime-android:latest.integration@aar"
+@@ -242,19 +242,19 @@ dependencies {
+   implementation "junit:junit:4.12"
+ 
+   if (useQnn) {
+-    extractLibs "com.microsoft.onnxruntime:onnxruntime-android-qnn:latest.integration@aar"
++    extractLibs "com.microsoft.onnxruntime:onnxruntime-android-qnn:1.24.3@aar"
+   } else {
+-    extractLibs "com.microsoft.onnxruntime:onnxruntime-android:latest.integration@aar"
++    extractLibs "com.microsoft.onnxruntime:onnxruntime-android:1.24.3@aar"
    }
  
 -  if (VersionNumber.parse(REACT_NATIVE_VERSION) < VersionNumber.parse("0.71")) {
@@ -11,6 +18,14 @@ index 41b4359..ee29bf9 100644
      extractLibs "com.facebook.fbjni:fbjni:+:headers"
      extractLibs "com.facebook.fbjni:fbjni:+"
    }
+ 
+   // By default it will just include onnxruntime full aar package
+   if (ortExtensionsEnabled) {
+-    implementation "com.microsoft.onnxruntime:onnxruntime-extensions-android:latest.integration@aar"
++    implementation "com.microsoft.onnxruntime:onnxruntime-extensions-android:0.13.0@aar"
+   }
+ }
+ 
 diff --git a/node_modules/onnxruntime-react-native/unimodule.json b/node_modules/onnxruntime-react-native/unimodule.json
 deleted file mode 100644
 index c2bd3c0..0000000

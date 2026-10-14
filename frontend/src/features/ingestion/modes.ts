@@ -32,12 +32,14 @@ export interface IngestionMode {
   readonly copy: { captureHint: string; doneTitle: string; againLabel: string; exitLabel?: string };
   /** Whether the result screen asks what kind of garment this is. */
   readonly asksCategory: boolean;
+  /** Whether several gallery photos can be picked at once, each completed in turn. */
+  readonly allowsBatch: boolean;
   /** Turns a processed garment into a result, persisting it if the mode does that. */
   complete(result: ProcessedGarment, onStep: (step: StepKey) => void): Promise<IngestionOutcome>;
   /** Releases anything the last complete() created that only lives while it is shown. */
   discard(): void;
   /** Leaves the flow from the result screen. Only called when copy.exitLabel is set. */
-  exit(outcome: IngestionOutcome): void;
+  exit(): void;
   /** Set when the result can be improved with more photos of the same garment. */
   addPhotos?(outcome: IngestionOutcome): void;
 }
@@ -68,6 +70,7 @@ export function createClosetMode(deps: { closet: ClosetRepository; sync: CloudSy
       exitLabel: 'View in closet',
     },
     asksCategory: true,
+    allowsBatch: true, // each photo becomes its own garment
     async complete(result, onStep) {
       onStep('saving');
       const garment = await deps.closet.add(result);
@@ -100,6 +103,7 @@ export function createAddPhotoMode(deps: { photos: GarmentPhotos; sync: CloudSyn
       exitLabel: 'Done',
     },
     asksCategory: false,
+    allowsBatch: true, // every photo joins the same garment
     async complete(result, onStep) {
       onStep('saving');
       const { garment, photo } = await deps.photos.addPhoto(deps.garmentId, result);
@@ -134,6 +138,7 @@ export function createShopMode(deps: { wearer: Wearer }): IngestionMode {
       againLabel: 'Scan another',
     },
     asksCategory: false,
+    allowsBatch: false, // one garment on the rack at a time; the result is the point
     async complete(result) {
       discard();
       preview = writeCacheFile(`shop-${Date.now()}.png`, result.png);

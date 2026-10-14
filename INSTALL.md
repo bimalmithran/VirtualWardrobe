@@ -159,12 +159,20 @@ No `adb`? Install Android platform-tools, e.g. `sudo pacman -S android-tools` on
 
 ### Using the app
 
+**Adding many garments at once.** On the **Add** tab, tap **Gallery** and select up to 20
+photos; each becomes its own garment. They're processed one after another on the phone, with a
+"Photo 3 of 8" progress screen, so keep the app open. Photos that fail the quality check (blurry,
+too dark) are skipped rather than stopping the batch. The summary lists every photo as added,
+skipped or failed, offers **Add skipped photos anyway**, and opens each new garment so you can tag
+its category. Picking just one photo works as before. **Live Shop** stays one photo at a time.
+
 **Several photos of one garment.** One photo's colour depends on its light and angle. Add more
 shots (the back, a close-up, the garment in other light) and the app combines them into a truer
 colour and style vector, which improves outfit suggestions and "similar items".
 
 - Right after adding a garment, tap **Add another photo of this garment**.
 - Or open any garment from the **Closet** and tap the **Add photo** tile in its photo strip.
+- On that screen, **Gallery** also takes several photos at once; all of them join that garment.
 - Tap a thumbnail to view it; long-press one to remove a bad shot. A garment keeps at least one
   photo.
 
