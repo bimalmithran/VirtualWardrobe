@@ -10,6 +10,10 @@ export function detectCapabilities(): Capabilities {
     !!NativeModules.Onnxruntime || typeof (globalThis as { OrtApi?: unknown }).OrtApi !== 'undefined';
   if (!runtimeAvailable) notes.push('ONNX Runtime is not linked in this build (e.g. Expo Go).');
 
+  // No XNNPACK: its execution provider aborts the process natively while partitioning the
+  // int8 segmentation model (seen on a Motorola Edge 20 Pro), and a native abort can't be
+  // caught, so SessionPool's CPU retry never runs. ORT's own CPU kernels use NEON int8 dot
+  // products anyway. Only add a provider here after loading every model with it on a phone.
   const accelerators: string[] = [];
   let npu = false;
   if (Platform.OS === 'android') {
@@ -19,9 +23,9 @@ export function detectCapabilities(): Capabilities {
       accelerators.push('nnapi');
       npu = true;
     }
-    accelerators.push('xnnpack', 'cpu');
+    accelerators.push('cpu');
   } else if (Platform.OS === 'ios') {
-    accelerators.push('coreml', 'xnnpack', 'cpu');
+    accelerators.push('coreml', 'cpu');
     npu = true; // every supported iPhone has a Neural Engine
   } else {
     accelerators.push('cpu');

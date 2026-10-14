@@ -77,8 +77,9 @@ deliberately left out.
   Cloud failure falls back to the phone when it has a runtime.
 - **Photos of the user never use the cloud path**, whatever the tier (the consent text promises it).
 - **NPU is opt-in** (Twin → AI on this device). NNAPI/Core ML often reject or slow down the
-  dynamically-quantised int8 graphs these models ship as, so XNNPACK → CPU is the default.
-  Any accelerator that fails session creation falls back to CPU automatically.
+  dynamically-quantised int8 graphs these models ship as, so CPU is the default (XNNPACK was
+  dropped, see below). An accelerator that *rejects* the graph falls back to CPU automatically;
+  one that aborts natively takes the app down, which is why NNAPI stays opt-in.
 - **Server-side vision** uses the same ONNX files via `onnxruntime_go` (cgo, `-tags onnx`,
   ORT 1.29). The API binary now ships on Debian slim instead of static distroless because of
   that. Models download into a volume on first boot; `/api/vision/*` returns 503 until ready.
@@ -111,10 +112,15 @@ deliberately left out.
   about one by one (a 20-photo batch shouldn't stall on a prompt); "Add skipped anyway" re-runs
   just those. Live Shop keeps single capture because its value is the per-item verdict. Category
   tagging moved to the garment page for batches; a per-row picker made the summary too long.
+- **No XNNPACK execution provider.** With `['xnnpack', 'cpu']` (added with device tiering),
+  ORT aborted the app natively inside `Ort::Session` creation for the int8 RMBG model on the
+  Motorola Edge 20 Pro, right after every photo. A native abort can't be caught in JS, so the CPU
+  retry in `SessionPool` never ran. Android now uses ORT's CPU provider (NEON int8 kernels), as
+  the last build that worked on the phone did; NNAPI/Core ML remain opt-in via the NPU toggle.
+  Any new provider must load every model on a real phone before it's added.
 - **ONNX Runtime native version is pinned** (patch to `onnxruntime-react-native`'s gradle file).
-  Upstream resolves `onnxruntime-android:latest.integration`, which by now bundled 1.31 under a
-  1.24.3 JSI bridge and aborted natively in `Ort::Session` creation on the Motorola Edge 20 Pro.
-  A native abort can't be caught in JS, so the CPU retry in `SessionPool` never got a chance.
+  Upstream resolves `onnxruntime-android:latest.integration`, which silently moved builds to 1.31
+  under a 1.24.3 JSI bridge. Not the cause of the crash above, but builds must be reproducible.
 
 ## 3. Wardrobe management
 

@@ -88,10 +88,9 @@ reapplies them on every `npm install`/`npm ci`, so EAS and Docker builds both ge
   patch deletes the file. Check with
   `npx expo-modules-autolinking react-native-config --platform android`, which must list the package.
 - Its `build.gradle` fetched the native runtime as `onnxruntime-android:latest.integration`, so
-  every fresh build bundled whatever ONNX Runtime was newest (1.31 by October 2026) under a JS
-  bridge compiled against 1.24.3. That mix aborted the app natively while loading the
-  background-removal model, right after a photo was taken or picked, with no JS error to catch.
-  The patch pins the AAR to 1.24.3. Bump it together with the npm package, never on its own.
+  every fresh build silently bundled whatever ONNX Runtime was newest (1.31 by October 2026)
+  under a JS bridge compiled against 1.24.3. The patch pins the AAR to 1.24.3 so builds are
+  reproducible. Bump it together with the npm package, never on its own.
   Check with `unzip -p frontend/dist/*.apk lib/arm64-v8a/libonnxruntime.so | strings | grep -x '1\.[0-9]*\.[0-9]*'`.
 
 Drop each fix once upstream ships it.

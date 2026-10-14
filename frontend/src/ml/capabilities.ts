@@ -11,7 +11,7 @@ export interface Capabilities {
   totalMemoryBytes: number | null;
   /** The ONNX runtime for this platform loaded (native module linked, or wasm available on web). */
   runtimeAvailable: boolean;
-  /** Accelerators the runtime can use, best first: e.g. ['nnapi', 'xnnpack', 'cpu'] or ['webgpu', 'wasm']. */
+  /** Accelerators the runtime can use, best first: e.g. ['nnapi', 'cpu'] or ['webgpu', 'wasm']. */
   accelerators: string[];
   /** Hardware neural accelerator reachable from the runtime (NNAPI, Core ML, WebNN). */
   npu: boolean;

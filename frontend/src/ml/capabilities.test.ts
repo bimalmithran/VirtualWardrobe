@@ -5,7 +5,7 @@ const phone = (over: Partial<Capabilities> = {}): Capabilities => ({
   platform: 'android',
   totalMemoryBytes: 8 * GB,
   runtimeAvailable: true,
-  accelerators: ['nnapi', 'xnnpack', 'cpu'],
+  accelerators: ['nnapi', 'cpu'],
   npu: true,
   gpu: false,
   cpuScoreMs: 40,
@@ -25,7 +25,7 @@ test('tiers', () => {
 test('high tier runs everything on the phone, NPU only when preferred', () => {
   const p = planExecution(phone(), inputs);
   expect([p.segmentation, p.embedding, p.maxResidentSessions]).toEqual(['device', 'device', 2]);
-  expect(p.executionProviders).toEqual(['xnnpack', 'cpu']);
+  expect(p.executionProviders).toEqual(['cpu']);
   expect(planExecution(phone(), { ...inputs, preferNpu: true }).executionProviders[0]).toBe('nnapi');
 });
 
