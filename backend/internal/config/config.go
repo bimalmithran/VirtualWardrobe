@@ -29,6 +29,13 @@ type Config struct {
 	// The AI stylist uses Claude when an API key is set, else the built-in basic stylist.
 	AnthropicAPIKey string // ANTHROPIC_API_KEY
 	StylistModel    string // STYLIST_MODEL, default claude-opus-5-5
+
+	// Monetisation.
+	RevenueCatWebhookAuth string // REVENUECAT_WEBHOOK_AUTH: the Authorization header value set in RevenueCat
+	AffiliateSecret       string // AFFILIATE_SECRET: signs /go/ links (random per boot if empty)
+	AmazonAssociateTag    string // AMAZON_ASSOCIATE_TAG
+	AffiliateWrapper      string // AFFILIATE_LINK_WRAPPER: network deep-link template with {url}
+	AffiliatePartners     string // AFFILIATE_PARTNERS: comma list, default myntra,ajio,amazon,zara
 }
 
 // FromEnv reads Config using getenv (os.Getenv in production, a map in tests).
@@ -49,6 +56,12 @@ func FromEnv(getenv func(string) string) (Config, error) {
 		VisionSegmentation: or(getenv("VISION_SEGMENTATION"), "rmbg-1.4"),
 		AnthropicAPIKey:    getenv("ANTHROPIC_API_KEY"),
 		StylistModel:       or(getenv("STYLIST_MODEL"), "claude-opus-5-5"),
+
+		RevenueCatWebhookAuth: getenv("REVENUECAT_WEBHOOK_AUTH"),
+		AffiliateSecret:       getenv("AFFILIATE_SECRET"),
+		AmazonAssociateTag:    getenv("AMAZON_ASSOCIATE_TAG"),
+		AffiliateWrapper:      getenv("AFFILIATE_LINK_WRAPPER"),
+		AffiliatePartners:     getenv("AFFILIATE_PARTNERS"),
 	}
 	if c.VisionSegmentation != "rmbg-1.4" && c.VisionSegmentation != "isnet" {
 		return Config{}, errors.New("VISION_SEGMENTATION must be rmbg-1.4 or isnet")

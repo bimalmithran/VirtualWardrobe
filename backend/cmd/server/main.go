@@ -5,16 +5,20 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/bimalmithran/virtualwardrobe/backend/internal/affiliate"
+	"github.com/bimalmithran/virtualwardrobe/backend/internal/billing"
 	"github.com/bimalmithran/virtualwardrobe/backend/internal/config"
 	"github.com/bimalmithran/virtualwardrobe/backend/internal/httpapi"
 	"github.com/bimalmithran/virtualwardrobe/backend/internal/imagestore"
@@ -88,14 +92,39 @@ func run(log *slog.Logger) error {
 		log.Info("stylist uses the built-in basic stylist; set ANTHROPIC_API_KEY for the AI stylist")
 	}
 
+	billingStore := postgres.NewBilling(pool)
+	affiliateRepo := postgres.NewAffiliate(pool)
+	secret := []byte(cfg.AffiliateSecret)
+	if len(secret) == 0 {
+		secret = make([]byte, 32)
+		if _, err := rand.Read(secret); err != nil {
+			return err
+		}
+		log.Warn("AFFILIATE_SECRET not set: shopping links stop working after a restart")
+	}
+	if cfg.RevenueCatWebhookAuth == "" {
+		log.Warn("REVENUECAT_WEBHOOK_AUTH not set: premium purchases can't be recorded")
+	}
+	var partners []string
+	if cfg.AffiliatePartners != "" {
+		partners = strings.Split(cfg.AffiliatePartners, ",")
+	}
+
 	srv := &http.Server{
 		Addr: cfg.Addr,
 		Handler: httpapi.NewRouter(httpapi.Deps{
-			Health:        pool,
-			Profiles:      wardrobe.NewProfiles(users),
-			Privacy:       privacy,
-			Vision:        cloudVision,
-			Stylist:       wardrobe.NewStylist(streamer, privacy, nil),
+			Health:       pool,
+			Profiles:     wardrobe.NewProfiles(users),
+			Privacy:      privacy,
+			Vision:       cloudVision,
+			Stylist:      wardrobe.NewStylist(streamer, privacy, billingStore),
+			Entitlements: billingStore,
+			RevenueCat:   billing.NewRevenueCat(billingStore, cfg.RevenueCatWebhookAuth),
+			Affiliate: affiliate.New(affiliate.Config{
+				Secret: secret, AmazonTag: cfg.AmazonAssociateTag, Wrapper: cfg.AffiliateWrapper, Partners: partners,
+			}, affiliateRepo),
+			Clicks:        affiliateRepo,
+			Resale:        wardrobe.NewResale(postgres.NewListings(pool), images),
 			Devices:       devices,
 			Items:         closet,
 			Deleter:       closet,

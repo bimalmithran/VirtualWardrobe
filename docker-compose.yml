@@ -35,6 +35,15 @@ services:
       # Cloud vision for low-end phones. Models (~56 MB) download into the volume on first boot.
       VISION_ENABLED: ${VISION_ENABLED:-true}
       VISION_SEGMENTATION: ${VISION_SEGMENTATION:-rmbg-1.4}
+      # AI stylist: Claude when a key is set, else the built-in basic stylist.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      STYLIST_MODEL: ${STYLIST_MODEL:-claude-opus-5-5}
+      # Monetisation (all optional; see INSTALL.md).
+      REVENUECAT_WEBHOOK_AUTH: ${REVENUECAT_WEBHOOK_AUTH:-}
+      AFFILIATE_SECRET: ${AFFILIATE_SECRET:-}
+      AMAZON_ASSOCIATE_TAG: ${AMAZON_ASSOCIATE_TAG:-}
+      AFFILIATE_LINK_WRAPPER: ${AFFILIATE_LINK_WRAPPER:-}
+      AFFILIATE_PARTNERS: ${AFFILIATE_PARTNERS:-}
     volumes:
       - uploads:/data/uploads
       - models:/data/models

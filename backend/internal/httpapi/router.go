@@ -61,6 +61,12 @@ type Deps struct {
 	Privacy  PrivacyService
 	Vision   VisionService
 	Stylist  StylistService
+
+	Entitlements EntitlementReader
+	RevenueCat   WebhookHandler
+	Affiliate    AffiliateService
+	Clicks       ClickLogger
+	Resale       ResaleService
 	// Devices authenticates /api requests. Nil disables auth (AUTH_REQUIRED=false).
 	Devices DeviceRegistry
 	// Serves stored images; mounted at ImagesPrefix.
@@ -83,6 +89,10 @@ func NewRouter(d Deps) http.Handler {
 	deviceH := &deviceHandler{reg: d.Devices, errs: errs}
 	visionH := &visionHandler{vision: d.Vision, errs: errs}
 	stylistH := &stylistHandler{stylist: d.Stylist, errs: errs, log: d.Log}
+	commerceH := &commerceHandler{
+		entitlements: d.Entitlements, webhook: d.RevenueCat, affiliate: d.Affiliate, clicks: d.Clicks, resale: d.Resale,
+		urls: urls, errs: errs, log: d.Log,
+	}
 
 	// Routes that act for a user go through device authentication.
 	api := http.NewServeMux()
@@ -99,12 +109,23 @@ func NewRouter(d Deps) http.Handler {
 	api.HandleFunc("POST /api/vision/segment", visionH.segment)
 	api.HandleFunc("POST /api/vision/embed", visionH.embed)
 	api.HandleFunc("POST /api/stylist/chat", stylistH.chat)
+	api.HandleFunc("GET /api/me/entitlements", commerceH.getEntitlements)
+	api.HandleFunc("POST /api/affiliate/recommendations", commerceH.recommend)
+	api.HandleFunc("POST /api/listings", commerceH.createListing)
+	api.HandleFunc("GET /api/listings", commerceH.feed)
+	api.HandleFunc("PATCH /api/listings/{id}", commerceH.updateListing)
+	api.HandleFunc("POST /api/listings/{id}/inquiries", commerceH.inquire)
+	api.HandleFunc("GET /api/listings/{id}/inquiries", commerceH.inquiries)
 	api.HandleFunc("POST /api/llm/complete", llmH.complete)
 	api.HandleFunc("GET /api/llm/models", llmH.models)
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /healthz", healthHandler{d.Health})
 	mux.HandleFunc("POST /api/devices/enroll", deviceH.enroll)
+	// Public: called by RevenueCat, or opened in a browser.
+	mux.HandleFunc("POST /api/webhooks/revenuecat", commerceH.revenueCat)
+	mux.HandleFunc("GET /go/{token}", commerceH.goRedirect)
+	mux.HandleFunc("GET /l/{id}", commerceH.publicListing)
 	mux.Handle("/api/", authenticate(d.Devices, errs, api))
 	if d.Images != nil {
 		mux.Handle("GET "+d.ImagesPrefix+"/", d.Images)

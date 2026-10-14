@@ -20,7 +20,7 @@ type stylistStub struct {
 func (s stylistStub) Begin(context.Context, string, *stylist.Request) error { return s.beginErr }
 func (s stylistStub) Stream(_ context.Context, _ stylist.Request, emit func(stylist.Event) error) error {
 	emit(stylist.OutfitCard{Title: "Rainy dinner", ItemIDs: []string{"a", "b"}, Reason: "dark and dry"}) //nolint:errcheck
-	emit(stylist.TextDelta{Text: "Wear "})                                                                //nolint:errcheck
+	emit(stylist.TextDelta{Text: "Wear "})                                                               //nolint:errcheck
 	if s.streamErr != nil {
 		return s.streamErr
 	}
