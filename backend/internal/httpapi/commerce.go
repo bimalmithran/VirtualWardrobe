@@ -178,6 +178,19 @@ func (h *commerceHandler) feed(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"listings": out})
 }
 
+func (h *commerceHandler) getListing(w http.ResponseWriter, r *http.Request) {
+	user, err := actingUser(r, "")
+	var l domain.Listing
+	if err == nil {
+		l, err = h.resale.Get(r.Context(), user, r.PathValue("id"))
+	}
+	if err != nil {
+		h.errs.write(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, h.resolveListing(r, l))
+}
+
 type listingPatch struct {
 	Status   *domain.ListingStatus `json:"status"`
 	PriceINR *int                  `json:"price_inr"`

@@ -6,6 +6,8 @@ import { Button } from '../components/Button';
 import { Chips } from '../components/Chips';
 import { ModelSetup } from '../components/ModelSetup';
 import { CATEGORIES, type Category, type Garment, type GarmentShape, type SelfPhoto } from '../domain/types';
+import { FREE_LIMITS } from '../billing/plans';
+import { usePremium } from '../billing/PremiumContext';
 import { useProfile } from '../features/profile/ProfileContext';
 import { useSelf } from '../features/self/SelfContext';
 import { TryOnCanvas } from '../features/tryon/TryOnCanvas';
@@ -28,7 +30,14 @@ const isCategory = (s: string | undefined): s is Category => !!s && (CATEGORIES 
  */
 export default function TryOn() {
   const params = useLocalSearchParams<{ garment?: string; uri?: string; category?: string; subcategory?: string; shape?: string }>();
-  const { closet, self, models } = useServices();
+  const { closet, self, models, tryOnCounter } = useServices();
+  const { premium, upgrade } = usePremium();
+  // Free plan: a few try-ons a day, counted once per opened try-on.
+  const [freeAllowed, setFreeAllowed] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!premium) tryOnCounter.take(FREE_LIMITS.tryOn).then(setFreeAllowed);
+  }, [premium, tryOnCounter]);
+  const allowed = premium ? true : freeAllowed;
   const statuses = useModelStatuses(models.status);
   const { profile } = useProfile();
   const { photos } = useSelf();
@@ -92,7 +101,16 @@ export default function TryOn() {
   const canvasWidth = width - 32;
   const maxHeight = height * 0.6;
 
-  if (!garment) return <View style={ui.screen} />;
+  if (!garment || allowed === null) return <View style={ui.screen} />;
+  if (!allowed) {
+    return (
+      <View style={[ui.screen, styles.content]}>
+        <Text style={ui.h2}>You&apos;ve used today&apos;s {FREE_LIMITS.tryOn} free try-ons</Text>
+        <Text style={ui.body}>Premium gives you unlimited try-ons, plus packing lists and wardrobe insights.</Text>
+        <Button title="See Premium" onPress={() => upgrade('Unlimited try-on is a Premium feature.')} style={styles.gap} />
+      </View>
+    );
+  }
 
   let canvas: ReactNode = null;
   if (mode === 'avatar') {

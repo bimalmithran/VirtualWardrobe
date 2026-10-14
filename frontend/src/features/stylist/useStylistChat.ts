@@ -26,6 +26,7 @@ export function useStylistChat(closet: Garment[] | null, wearer: Wearer, twin: D
   const [history, setHistory] = useState<ChatMessage[]>([]);
   const [streaming, setStreaming] = useState<Streaming | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [quotaHit, setQuotaHit] = useState(false);
   const abort = useRef<AbortController | null>(null);
   const cloud = !!stylist && allows('ai_stylist');
 
@@ -39,6 +40,7 @@ export function useStylistChat(closet: Garment[] | null, wearer: Wearer, twin: D
       const q = question.trim();
       if (!q || streaming || !closet) return;
       setError(null);
+      setQuotaHit(false);
       const userMsg = await chat.add({ role: 'user', text: q, cards: [] });
       const prior = history;
       setHistory((h) => [...h, userMsg]);
@@ -59,9 +61,11 @@ export function useStylistChat(closet: Garment[] | null, wearer: Wearer, twin: D
         if (cloud) await stylist!.chat(payload, onEvent, controller.signal);
         else await localStylist(payload, onEvent, controller.signal);
       } catch (e) {
+        const quota = e instanceof ApiError && e.code === 'quota_exceeded';
+        if (quota) setQuotaHit(true);
         if (!controller.signal.aborted) {
           failure =
-            e instanceof ApiError && e.code === 'quota_exceeded'
+            quota
               ? "You've used today's free stylist chats. Upgrade to Premium for unlimited styling."
               : e instanceof ApiError && e.code === 'consent_required'
                 ? 'Turn on the AI stylist in Privacy & data to use it.'
@@ -86,5 +90,5 @@ export function useStylistChat(closet: Garment[] | null, wearer: Wearer, twin: D
     setHistory([]);
   }, [chat]);
 
-  return { history, streaming, error, send, stop, clear, cloud };
+  return { history, streaming, error, quotaHit, send, stop, clear, cloud };
 }

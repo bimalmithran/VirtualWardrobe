@@ -7,6 +7,9 @@ import { OutfitCard } from '../components/OutfitCard';
 import { useWardrobe } from '../features/outfits/useWardrobe';
 import { useWearer } from '../features/self/SelfContext';
 import { useServices } from '../services/ServicesProvider';
+import { CompleteTheLook } from '../features/commerce/CompleteTheLook';
+import { lookGaps } from '../style/gaps';
+import { currentWeather } from '../style/outfitGenerator';
 import { scoreOutfit } from '../style/outfitSuggestions';
 import { ui } from '../theme';
 
@@ -40,6 +43,7 @@ export default function Look() {
         score={scoreOutfit(pieces, wearer)}
         onPressGarment={(g) => router.push({ pathname: '/garment/[id]', params: { id: g.id } })}
       />
+      <CompleteTheLook needs={lookGaps(pieces, wearer, currentWeather())} />
       <Button
         title="Save outfit"
         busy={busy === 'save'}

@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ConsentProvider } from '../features/privacy/ConsentContext';
 import { ConsentSheet } from '../features/privacy/ConsentSheet';
 import { ProfileProvider } from '../features/profile/ProfileContext';
+import { PremiumProvider } from '../billing/PremiumContext';
 import { I18nProvider } from '../i18n/I18nProvider';
 import { SelfProvider } from '../features/self/SelfContext';
 import { ServicesProvider, useServices } from '../services/ServicesProvider';
@@ -36,6 +37,12 @@ export default function RootLayout() {
                 <Stack.Screen name="privacy" options={{ title: 'Privacy & data' }} />
                 <Stack.Screen name="try-on" options={{ title: 'Try it on' }} />
                 <Stack.Screen name="look" options={{ title: 'Look' }} />
+                <Stack.Screen name="premium" options={{ title: 'Premium', presentation: 'modal' }} />
+                <Stack.Screen name="packing" options={{ title: 'Packing list' }} />
+                <Stack.Screen name="insights" options={{ title: 'Wardrobe insights' }} />
+                <Stack.Screen name="marketplace" options={{ title: 'Marketplace' }} />
+                <Stack.Screen name="sell/[id]" options={{ title: 'List for sale' }} />
+                <Stack.Screen name="listing/[id]" options={{ title: 'Listing' }} />
               </Stack>
               <ConsentSheet />
             </SelfProvider>
@@ -52,7 +59,9 @@ function LocalizedApp({ children }: { children: React.ReactNode }) {
   const { settings } = useServices();
   return (
     <I18nProvider store={settings}>
-      <ConsentProvider>{children}</ConsentProvider>
+      <ConsentProvider>
+        <PremiumProvider>{children}</PremiumProvider>
+      </ConsentProvider>
     </I18nProvider>
   );
 }

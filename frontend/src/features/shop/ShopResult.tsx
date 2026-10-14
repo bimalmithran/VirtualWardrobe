@@ -9,6 +9,8 @@ import { CATEGORIES, CATEGORY_LABELS, EMPTY_TAGS, SUBCATEGORIES, type Category, 
 import { errorMessage } from '../../lib/errors';
 import { useServices } from '../../services/ServicesProvider';
 import { orphanReason } from '../../style/compatibility';
+import { orphanNeed } from '../../style/gaps';
+import { CompleteTheLook } from '../commerce/CompleteTheLook';
 import { cutFit } from '../../style/cutFit';
 import { generateLooks } from '../../style/outfitGenerator';
 import { scoreForWearer } from '../../style/personalFit';
@@ -123,6 +125,7 @@ export function ShopResult({ result, previewUri, onAgain }: { result: ProcessedG
         <View style={[ui.card, styles.alert]} accessibilityRole="alert">
           <Text style={[ui.h2, { color: colors.warn }]}>It would be an orphan</Text>
           <Text style={ui.body}>{orphan.message} You would need to buy more to wear it.</Text>
+          <CompleteTheLook needs={[orphanNeed(scanned, wearer)].filter((n) => n !== null)} />
         </View>
       )}
 

@@ -3,7 +3,10 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 import { configuredApiUrl, FetchHttpClient } from '../api/httpClient';
 import { StoredDeviceIdentity } from '../api/installationId';
+import { CommerceApi } from '../api/commerceApi';
 import { StylistApi, type StylistRemote } from '../api/stylistApi';
+import { DailyCounter } from '../billing/dailyCounter';
+import { PremiumService } from '../billing/premium';
 import { WardrobeApi, type SimilarityRemote } from '../api/wardrobeApi';
 import { SqliteChatRepository, type ChatRepository } from '../storage/chatRepository';
 import { isLanguage } from '../i18n/I18nProvider';
@@ -55,6 +58,11 @@ export interface AppServices {
   chat: ChatRepository;
   /** Cloud AI stylist (SSE); null without a backend. */
   stylist: StylistRemote | null;
+  premium: PremiumService;
+  /** Affiliate cards and resale; null without a backend. */
+  commerce: CommerceApi | null;
+  /** Today's free try-ons (try-on runs on the phone, so it is counted here). */
+  tryOnCounter: DailyCounter;
   pipeline: GarmentPipeline;
   /** Photos of the user and the on-device analysis that reads their colouring. */
   self: { photos: SelfPhotoRepository; analyzer: SelfAnalyzer; pose: PoseEstimator };
@@ -182,6 +190,9 @@ export function createAppServices(db: SQLiteDatabase, apiUrl = configuredApiUrl(
     eraser,
     chat: new SqliteChatRepository(db),
     stylist: http ? new StylistApi(http) : null,
+    premium: new PremiumService(identity, http),
+    commerce: http ? new CommerceApi(http) : null,
+    tryOnCounter: new DailyCounter(kv, 'tryon_usage_v1'),
     self: { photos: selfPhotos, analyzer: selfAnalyzer, pose },
     pipeline,
     models: { ...models, router },

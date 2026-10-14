@@ -13,7 +13,7 @@ import { useI18n } from '../../i18n/I18nProvider';
 import { SUB_SEASONS } from '../../style/seasons';
 import { useModelStatuses } from '../../ml/modelStatus';
 import { useServices } from '../../services/ServicesProvider';
-import { ui } from '../../theme';
+import { colors, ui } from '../../theme';
 
 const KEYS: ModelKey[] = CORE_MODELS;
 
@@ -51,6 +51,18 @@ export default function ProfileTab() {
                 {t('privacy.choices')} · {t('common.language')} · {t('privacy.rights')}
               </Text>
             </Pressable>
+            <View style={[ui.card, styles.me, styles.links]}>
+              {[
+                ['Premium', '/premium'],
+                ['Packing list', '/packing'],
+                ['Wardrobe insights', '/insights'],
+                ['Marketplace: buy and sell', '/marketplace'],
+              ].map(([label, href]) => (
+                <Text key={href} style={styles.link} onPress={() => router.push(href as never)} accessibilityRole="link">
+                  {label} ›
+                </Text>
+              ))}
+            </View>
             <DeviceAiCard />
             {missing.length > 0 ? (
               <ModelSetup required={missing} />
@@ -81,4 +93,6 @@ export default function ProfileTab() {
 const styles = StyleSheet.create({
   models: { marginTop: 24 },
   me: { gap: 4, marginBottom: 16 },
+  links: { gap: 10 },
+  link: { ...ui.body, color: colors.accent, fontWeight: '600' },
 });

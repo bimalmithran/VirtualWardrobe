@@ -208,28 +208,47 @@ deliberately left out.
   compiles against SDK v1.80.0 and the SSE path was tested end-to-end with the built-in
   stylist. Set `ANTHROPIC_API_KEY` in `.env` to switch it on.
 
-## 6. Remaining work (paused at the usage limit, 2026-10-13)
+## 5c. Monetisation
 
-Done and committed: sections 1–5b above. The M7 database schema (entitlements, usage
-counters, webhook idempotency, affiliate products/clicks, listings, inquiries) is committed
-and applied, but nothing uses it yet. Still to build:
+- **Payments: RevenueCat** (`react-native-purchases`). It validates Google Play / App Store
+  receipts and is one of the two libraries Expo's IAP guide lists. The app logs in to
+  RevenueCat with its install user id, so the webhook's `app_user_id` is our `users.id`.
+  Keys: `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` / `_IOS_KEY`. Without a key, or on web, the paywall
+  says purchases aren't available and Premium can still come from the server.
+- **Entitlement: `premium`.** The store is the truth on the phone. The server's copy comes
+  from the webhook (`POST /api/webhooks/revenuecat`, checked against
+  `REVENUECAT_WEBHOOK_AUTH`, applied once per event id) and is what the API enforces.
+  Cancellation keeps access until expiry; EXPIRATION/REFUND end it.
+- **Free limits**: AI stylist 10 chats/day (server-enforced with an atomic counter; 402
+  `quota_exceeded`, with a "See Premium" link in the chat), cloud vision 30/day (counter
+  ready, not yet wired), try-on 3/day (counted on the phone, because it runs there — a
+  determined user could reset it by clearing data; acceptable for an on-device feature).
+- **Premium perks**: unlimited try-on and chat, **packing lists** (capsule sizing by trip
+  length and laundry; versatility-greedy selection; day-by-day looks without repeating a
+  top on consecutive days), **wardrobe insights** (spend, average cost per wear, best/worst
+  value, idle pieces). Per-garment cost per wear stays free.
+- **Affiliate "Complete the look"**: gap detection finds what a look needs (shoes, a winter
+  layer, a bottom for a kurta) or what an orphan needs, and picks the colour that harmonises
+  with every piece. Cards come from the optional `affiliate_products` feed (closest colour
+  first) then search links on Myntra, AJIO, Amazon.in and Zara. `AMAZON_ASSOCIATE_TAG` is
+  added to Amazon links; `AFFILIATE_LINK_WRAPPER` (a network deep-link template such as
+  Cuelinks/EarnKaro) wraps the others. **No made-up products**: without a feed, the cards
+  are honest search links. Every link goes through a signed `/go/{token}` redirect (HMAC,
+  30-day expiry, not an open redirect) that logs partner + category + hour only, never the
+  user. Cards load only on tap and always show the sponsored disclosure (ASCI).
+- **Resale**: "List for sale" pre-fills title, description and a suggested price
+  (purchase price × condition factor − 1% per wear, max 15%, rounded to ₹50) from the closet.
+  It publishes a 1024 px WebP of the cutout. Listing needs cloud backup on (the server needs
+  the user's account row). Buyers message sellers through **inquiries**; only the seller sees
+  the buyer's contact, and the seller's identity is never exposed. One active listing per
+  garment; marking sold offers to remove it from the closet; erasing the account removes
+  listings. A public share page `/l/{id}` (escaped HTML, strict CSP) works without the app.
+  **No in-app payment/escrow** — buyer and seller settle directly, with safety advice
+  shown. Payments would need a marketplace PSP (e.g. Razorpay Route) and KYC.
 
-- **Paywall**: RevenueCat (`react-native-purchases`, keys from `EXPO_PUBLIC_REVENUECAT_*`)
-  for the purchase flow; webhook `POST /api/webhooks/revenuecat` (shared secret) writes
-  `entitlements`; a Postgres `Quota` (free tier: 10 stylist chats/day) plugs into
-  `wardrobe.NewStylist(..., quota)`; free/premium comparison screen.
-- **Premium perks**: try-on limit (3/day free, counted on the device); automated packing list
-  (capsule pick + day-by-day plan); cost-per-wear analytics screen (`style/costPerWear.ts`'s
-  `costReport` is already written and tested).
-- **Affiliate "Complete the look"**: gap detection per outfit, then partner search links
-  (Myntra, Ajio, Amazon.in, Zara) with affiliate tags from config. Links go through an
-  HMAC-signed `/go/{token}` redirect that logs the click. Cards carry a sponsored disclosure
-  (ASCI guidelines).
-- **Resale**: "List for sale" from the garment page (title, description and price prefilled
-  from tags), listings feed, buyer inquiries, mark sold, public share page `/l/{id}`. No
-  payments or escrow.
-- **Web target**: react-native-web, `onnxruntime-web` for `ort.web.ts`, a canvas
-  `pixels.web.ts`, image storage, and COOP/COEP headers for SQLite wasm. The
-  `.web.ts` capability probe and key-value store already exist.
-- **Docs**: README/INSTALL updates for the new env vars (`ANTHROPIC_API_KEY`, `VISION_*`,
-  `AUTH_REQUIRED`, `EXPO_PUBLIC_LEGAL_*`/`GRIEVANCE_*`).
+## 6. Remaining work
+
+- **Web target** (section 6 of the original list): react-native-web, `onnxruntime-web` for
+  `ort.web.ts`, a canvas `pixels.web.ts`, web image storage, and COOP/COEP headers for
+  SQLite wasm. The `.web.ts` capability probe and key-value store already exist.
+- **Docs**: README/INSTALL for the new env vars.

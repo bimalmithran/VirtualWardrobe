@@ -113,6 +113,7 @@ func NewRouter(d Deps) http.Handler {
 	api.HandleFunc("POST /api/affiliate/recommendations", commerceH.recommend)
 	api.HandleFunc("POST /api/listings", commerceH.createListing)
 	api.HandleFunc("GET /api/listings", commerceH.feed)
+	api.HandleFunc("GET /api/listings/{id}", commerceH.getListing)
 	api.HandleFunc("PATCH /api/listings/{id}", commerceH.updateListing)
 	api.HandleFunc("POST /api/listings/{id}/inquiries", commerceH.inquire)
 	api.HandleFunc("GET /api/listings/{id}/inquiries", commerceH.inquiries)

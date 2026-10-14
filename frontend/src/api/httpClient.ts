@@ -21,6 +21,7 @@ export interface HttpClient {
   readonly baseUrl: string;
   getJson<T>(path: string): Promise<T>;
   postJson<T>(path: string, body: unknown): Promise<T>;
+  patchJson<T>(path: string, body: unknown): Promise<T>;
   delete(path: string): Promise<void>;
   /** Headers that authenticate this install; for transports that bypass this client (SSE). */
   authHeaders(): Promise<Record<string, string>>;
@@ -47,6 +48,10 @@ export class FetchHttpClient implements HttpClient {
 
   postJson<T>(path: string, body: unknown): Promise<T> {
     return this.send<T>('POST', path, body);
+  }
+
+  patchJson<T>(path: string, body: unknown): Promise<T> {
+    return this.send<T>('PATCH', path, body);
   }
 
   async delete(path: string): Promise<void> {

@@ -25,6 +25,8 @@ import { useConsent } from '../../features/privacy/ConsentContext';
 import { useProfile } from '../../features/profile/ProfileContext';
 import { PersonalMatchCard } from '../../features/shop/PersonalMatchCard';
 import { cutFit } from '../../style/cutFit';
+import { orphanNeed } from '../../style/gaps';
+import { CompleteTheLook } from '../../features/commerce/CompleteTheLook';
 import { orphanReason, type OrphanReason } from '../../style/compatibility';
 import { openAddPhotos } from '../../features/ingestion/modes';
 import { useWearer } from '../../features/self/SelfContext';
@@ -41,7 +43,7 @@ const openGarment = (id: string) => router.replace({ pathname: '/garment/[id]', 
 
 export default function GarmentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { closet, photos: photoStore, similarity, sync, outfits: outfitRepo } = useServices();
+  const { closet, photos: photoStore, similarity, sync, outfits: outfitRepo, commerce } = useServices();
   const { allows } = useConsent();
   const { profile } = useProfile();
   const [wears, setWears] = useState<WearEvent[]>([]);
@@ -175,6 +177,7 @@ export default function GarmentDetail() {
           <Text style={[ui.h2, { color: colors.warn }]}>Orphan item</Text>
           <Text style={ui.body}>{orphan.message}</Text>
           <Text style={ui.muted}>Nothing in your closet makes a complete outfit with this yet.</Text>
+          <CompleteTheLook needs={[orphanNeed(garment, wearer)].filter((n) => n !== null)} />
         </View>
       )}
 
@@ -219,7 +222,15 @@ export default function GarmentDetail() {
         <CloudSearchPanel garment={{ ...garment, embedding: garment.embedding }} remote={similarity} onOpen={openGarment} />
       )}
 
-      <Button title="Remove from closet" variant="secondary" style={styles.section} onPress={remove} />
+      {commerce && (
+        <Button
+          title="List for sale"
+          variant="secondary"
+          onPress={() => router.push({ pathname: '/sell/[id]', params: { id: garment.id } })}
+          style={styles.section}
+        />
+      )}
+      <Button title="Remove from closet" variant="secondary" style={styles.tight} onPress={remove} />
     </ScrollView>
   );
 }

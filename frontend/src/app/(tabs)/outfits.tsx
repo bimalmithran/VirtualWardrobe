@@ -10,6 +10,8 @@ import { piecesOf, useWardrobe } from '../../features/outfits/useWardrobe';
 import { useWearer } from '../../features/self/SelfContext';
 import { relativeDay } from '../../lib/dates';
 import { useServices } from '../../services/ServicesProvider';
+import { CompleteTheLook } from '../../features/commerce/CompleteTheLook';
+import { lookGaps } from '../../style/gaps';
 import { currentWeather, generateLooks } from '../../style/outfitGenerator';
 import { scoreOutfit } from '../../style/outfitSuggestions';
 import { colors, ui } from '../../theme';
@@ -127,6 +129,7 @@ export default function Outfits() {
                 style={[styles.slide, { width: width - 40 }]}
                 onPressGarment={(g) => router.push({ pathname: '/garment/[id]', params: { id: g.id } })}
               >
+                <CompleteTheLook needs={lookGaps(l.garments, wearer, weather)} />
                 <View style={styles.actions}>
                   <Button title="Wear today" variant="secondary" busy={busy === `w${key}`} onPress={() => wear(l.garments, `w${key}`)} style={styles.flex} />
                   <Button title="Save outfit" busy={busy === `s${key}`} onPress={() => save(l.garments, `s${key}`)} style={styles.flex} />

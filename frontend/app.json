@@ -63,7 +63,8 @@
       "expo-router",
       "expo-font",
       "expo-localization",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-web-browser"
     ],
     "scheme": "virtualwardrobe"
   }

@@ -3,6 +3,7 @@ import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleShee
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
+import { usePremium } from '../../billing/PremiumContext';
 import type { Garment } from '../../domain/types';
 import { useWardrobe } from '../../features/outfits/useWardrobe';
 import { useConsent } from '../../features/privacy/ConsentContext';
@@ -26,7 +27,8 @@ export default function Stylist() {
   const { garments } = useWardrobe();
   const wearer = useWearer();
   const { profile } = useProfile();
-  const { history, streaming, error, send, stop, clear, cloud } = useStylistChat(garments, wearer, profile);
+  const { history, streaming, error, quotaHit, send, stop, clear, cloud } = useStylistChat(garments, wearer, profile);
+  const { upgrade } = usePremium();
   const { stylist } = useServices();
   const { record, decide } = useConsent();
   const { language } = useI18n();
@@ -75,6 +77,11 @@ export default function Stylist() {
         ))}
         {streaming && <Bubble role="assistant" text={streaming.text || '…'} cards={streaming.cards} byId={byId} live />}
         {error && <Text style={styles.error}>{error}</Text>}
+        {quotaHit && (
+          <Text style={styles.link} onPress={() => upgrade('Unlimited AI stylist chats are a Premium feature.')} accessibilityRole="button">
+            See Premium
+          </Text>
+        )}
         {history.length > 0 && !streaming && (
           <Text style={styles.clear} onPress={clear} accessibilityRole="button">
             Clear conversation
