@@ -31,6 +31,9 @@ type Config struct {
 	StylistModel    string // STYLIST_MODEL, default claude-opus-5-5
 
 	// Monetisation.
+	// PremiumForAll gives every user Premium (no quotas) regardless of purchases. On while
+	// the app is in testing; set PREMIUM_FOR_ALL=false to start enforcing the free plan.
+	PremiumForAll         bool   // PREMIUM_FOR_ALL, default true
 	RevenueCatWebhookAuth string // REVENUECAT_WEBHOOK_AUTH: the Authorization header value set in RevenueCat
 	AffiliateSecret       string // AFFILIATE_SECRET: signs /go/ links (random per boot if empty)
 	AmazonAssociateTag    string // AMAZON_ASSOCIATE_TAG
@@ -57,6 +60,7 @@ func FromEnv(getenv func(string) string) (Config, error) {
 		AnthropicAPIKey:    getenv("ANTHROPIC_API_KEY"),
 		StylistModel:       or(getenv("STYLIST_MODEL"), "claude-opus-5-5"),
 
+		PremiumForAll:         boolOr(getenv("PREMIUM_FOR_ALL"), true),
 		RevenueCatWebhookAuth: getenv("REVENUECAT_WEBHOOK_AUTH"),
 		AffiliateSecret:       getenv("AFFILIATE_SECRET"),
 		AmazonAssociateTag:    getenv("AMAZON_ASSOCIATE_TAG"),

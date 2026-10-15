@@ -26,3 +26,14 @@ func TestOverridesAndErrors(t *testing.T) {
 		t.Fatal("negative ceiling accepted")
 	}
 }
+
+func TestPremiumForAll(t *testing.T) {
+	c, _ := FromEnv(env(map[string]string{"DATABASE_URL": "x"}))
+	if !c.PremiumForAll {
+		t.Fatal("PREMIUM_FOR_ALL should default to on")
+	}
+	c, _ = FromEnv(env(map[string]string{"DATABASE_URL": "x", "PREMIUM_FOR_ALL": "false"}))
+	if c.PremiumForAll {
+		t.Fatal("PREMIUM_FOR_ALL=false ignored")
+	}
+}

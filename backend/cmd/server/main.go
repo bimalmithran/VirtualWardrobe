@@ -92,7 +92,10 @@ func run(log *slog.Logger) error {
 		log.Info("stylist uses the built-in basic stylist; set ANTHROPIC_API_KEY for the AI stylist")
 	}
 
-	billingStore := postgres.NewBilling(pool)
+	billingStore := postgres.NewBilling(pool, cfg.PremiumForAll)
+	if cfg.PremiumForAll {
+		log.Info("PREMIUM_FOR_ALL is on: every user has Premium and no quotas apply")
+	}
 	affiliateRepo := postgres.NewAffiliate(pool)
 	secret := []byte(cfg.AffiliateSecret)
 	if len(secret) == 0 {

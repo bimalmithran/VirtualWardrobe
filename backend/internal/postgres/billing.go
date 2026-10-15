@@ -15,12 +15,19 @@ import (
 type Billing struct {
 	pool *pgxpool.Pool
 	now  func() time.Time
+	// everyone grants premium to all users (PREMIUM_FOR_ALL), bypassing stored entitlements.
+	everyone bool
 }
 
-func NewBilling(pool *pgxpool.Pool) *Billing { return &Billing{pool: pool, now: time.Now} }
+func NewBilling(pool *pgxpool.Pool, premiumForAll bool) *Billing {
+	return &Billing{pool: pool, now: time.Now, everyone: premiumForAll}
+}
 
 // Premium reports whether the user's premium entitlement is active now.
 func (b *Billing) Premium(ctx context.Context, user domain.UserID) (bool, *time.Time, error) {
+	if b.everyone {
+		return true, nil, nil
+	}
 	var expires *time.Time
 	err := b.pool.QueryRow(ctx,
 		`SELECT expires_at FROM entitlements WHERE user_id = $1 AND entitlement = $2`,

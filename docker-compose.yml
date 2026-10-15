@@ -44,6 +44,7 @@ services:
       AMAZON_ASSOCIATE_TAG: ${AMAZON_ASSOCIATE_TAG:-}
       AFFILIATE_LINK_WRAPPER: ${AFFILIATE_LINK_WRAPPER:-}
       AFFILIATE_PARTNERS: ${AFFILIATE_PARTNERS:-}
+      PREMIUM_FOR_ALL: ${PREMIUM_FOR_ALL:-true}
     volumes:
       - uploads:/data/uploads
       - models:/data/models
