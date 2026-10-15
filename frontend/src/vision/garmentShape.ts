@@ -68,3 +68,46 @@ export function measureShape(img: RGBAImage): GarmentShape | null {
     fill: round(filled / (b.w * b.h)),
   };
 }
+
+/** Rows (fractions of the garment's height) where each kind of garment is measured for fit. */
+const ANCHOR_ROWS = {
+  chest: [0.22, 0.38], // below the armholes, above the waist: the torso without the shoulders
+  waist: [0.01, 0.05], // the waistband
+} as const;
+
+/** Background gaps narrower than this share of the width are bridged (an open jacket front). */
+const MAX_GAP = 0.15;
+
+/**
+ * The garment's own width where it meets the body, in image pixels: the torso at chest height
+ * for tops, the waistband for bottoms. Unlike the bounding box this ignores sleeves held out
+ * to the side, so a flat-lay tee and the same tee on a hanger fit the same. Per row it takes
+ * the run of opaque pixels around the garment's centre line, joining runs split by a small
+ * gap, and returns the median over the rows. Null when nothing sensible can be measured.
+ */
+export function anchorWidth(img: RGBAImage, at: keyof typeof ANCHOR_ROWS): number | null {
+  const b = opaqueBounds(img);
+  if (!b || b.w < 4 || b.h < 8) return null;
+  const centre = b.x + b.w / 2;
+  const maxGap = b.w * MAX_GAP;
+  const [from, to] = ANCHOR_ROWS[at];
+  const widths: number[] = [];
+  for (let y = b.y + Math.floor(b.h * from); y <= b.y + Math.floor(b.h * to); y++) {
+    // Runs of opaque pixels in this row, merging those separated by small gaps.
+    const runs: [number, number][] = [];
+    for (let x = b.x; x < b.x + b.w; x++) {
+      if (img.data[(y * img.width + x) * 4 + 3] < KEEP) continue;
+      const last = runs[runs.length - 1];
+      if (last && x - last[1] <= maxGap) last[1] = x;
+      else runs.push([x, x]);
+    }
+    if (runs.length === 0) continue;
+    // The run over the centre line, or else the one nearest to it.
+    const dist = ([s, e]: [number, number]) => (centre < s ? s - centre : centre > e ? centre - e : 0);
+    const run = runs.reduce((best, r) => (dist(r) < dist(best) ? r : best));
+    widths.push(run[1] - run[0] + 1);
+  }
+  if (widths.length === 0) return null;
+  widths.sort((p, q) => p - q);
+  return widths[widths.length >> 1];
+}

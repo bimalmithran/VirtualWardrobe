@@ -26,6 +26,12 @@ const KEYS: Partial<Record<typeof Platform.OS, string | undefined>> = {
   ios: process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY,
 };
 
+/**
+ * Every user gets Premium while the app is in testing. Set EXPO_PUBLIC_PREMIUM_FOR_ALL=false
+ * (and PREMIUM_FOR_ALL=false on the server) to start selling it.
+ */
+export const PREMIUM_FOR_ALL = process.env.EXPO_PUBLIC_PREMIUM_FOR_ALL !== 'false';
+
 type PurchasesModule = typeof import('react-native-purchases').default;
 
 /**
@@ -35,7 +41,7 @@ type PurchasesModule = typeof import('react-native-purchases').default;
  * id, so the two always refer to the same person.
  */
 export class PremiumService {
-  private state: PremiumState = { premium: false, expiresAt: null, storeAvailable: false };
+  private state: PremiumState = { premium: PREMIUM_FOR_ALL, expiresAt: null, storeAvailable: false };
   private changes = new Emitter<PremiumState>();
   private purchases: PurchasesModule | null = null;
   private started: Promise<void> | null = null;
@@ -121,6 +127,7 @@ export class PremiumService {
 
   private set(patch: Partial<PremiumState>) {
     this.state = { ...this.state, ...patch };
+    if (PREMIUM_FOR_ALL) this.state.premium = true;
     this.changes.emit(this.state);
   }
 }

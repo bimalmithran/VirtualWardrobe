@@ -92,6 +92,7 @@ docker compose exec db psql -U wardrobe -d wardrobe
 | `VISION_SEGMENTATION` | `rmbg-1.4` | `rmbg-1.4` (non-commercial licence, matches the app) or `isnet` (Apache-2.0, use for commercial deployments). |
 | `ANTHROPIC_API_KEY` | empty | Turns on the AI stylist (Claude). Empty = the built-in basic stylist. |
 | `STYLIST_MODEL` | `claude-opus-5-5` | Claude model for the stylist. |
+| `PREMIUM_FOR_ALL` | `true` | Every user has Premium and no free-plan quotas apply (testing phase). Set `false` to enforce the free plan and sell Premium. |
 | `REVENUECAT_WEBHOOK_AUTH` | empty | The exact `Authorization` header value you set on the RevenueCat webhook. Without it purchases aren't recorded server-side. |
 | `AFFILIATE_SECRET` | random per boot | Signs shopping links; set a long random string so links survive restarts. |
 | `AMAZON_ASSOCIATE_TAG` | empty | Amazon Associates tracking id added to Amazon.in links. |
@@ -105,6 +106,7 @@ App-side settings live in `frontend/.env` and are baked in at build time:
 | `EXPO_PUBLIC_API_URL` | Server address (as above). |
 | `EXPO_PUBLIC_LEGAL_ENTITY`, `EXPO_PUBLIC_PRIVACY_URL` | Your company name and hosted privacy notice, shown in the consent sheet. |
 | `EXPO_PUBLIC_GRIEVANCE_NAME`, `_EMAIL`, `_PHONE`, `_ADDRESS` | Grievance Officer contact (DPDP). Until set, the privacy screens show a "not configured" warning. |
+| `EXPO_PUBLIC_PREMIUM_FOR_ALL` | Defaults to on: the app unlocks every Premium perk for everyone. Set `false` (with `PREMIUM_FOR_ALL=false` on the server) when you start selling Premium. |
 | `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`, `_IOS_KEY` | RevenueCat public SDK keys. Without them the paywall shows plans as unavailable. |
 
 ---
@@ -178,14 +180,19 @@ colour and style vector, which improves outfit suggestions and "similar items".
 - Right after adding a garment, tap **Add another photo of this garment**.
 - Or open any garment from the **Closet** and tap the **Add photo** tile in its photo strip.
 - On that screen, **Gallery** also takes several photos at once; all of them join that garment.
-- Tap a thumbnail to view it; long-press one to remove a bad shot. A garment keeps at least one
-  photo.
+- Tap a thumbnail to view it. Long-press one to start selecting, tap others to add them, then
+  **Delete (N)**. A garment keeps at least one photo.
+
+**Hangers.** Photographing a garment on a hanger is fine: the app removes the hook, and the
+hanger's arms where they stick out past the shoulders, from the cutout. A hanger bar showing
+through a neckline may remain.
 
 **Your colours (photos of you).** Open the **Twin** tab → **Your colours**, or tap the prompt on
 the **Outfits** tab.
 
-1. Tap **Take a photo** (opens the front camera; **Flip** switches lenses) or **Upload** to pick
-   one from the gallery.
+1. Tap **Take a photo** (opens the front camera; **Flip** switches lenses) or **Upload photos**
+   to pick up to 10 from the gallery at once. They're read one after another; a photo that can't
+   be read is listed and the rest still count.
 2. The app reads your skin tone, undertone (warm, cool or neutral), depth and skin-to-hair
    contrast, and shows your colour season with a palette of colours that flatter you.
 3. Below that: **Best on you from your closet** ranks your garments by how well they suit you,
@@ -198,7 +205,8 @@ Live Shop all take your palette and contrast into account.
 
 For a reliable reading, face a window in daylight, keep your face and neck visible, and avoid
 beauty filters and heavy make-up. Phone white balance affects the result, so a few photos in
-different light give a steadier answer. Long-press a photo to remove it.
+different light give a steadier answer. Long-press a photo to start selecting, tap others, then
+**Delete (N)** to remove several at once.
 
 **Privacy:** photos of you are processed and stored on the phone only and are never uploaded.
 For garments, the server receives only the main cutout plus the combined colour and style vector;

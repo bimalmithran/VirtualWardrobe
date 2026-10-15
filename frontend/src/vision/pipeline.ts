@@ -5,6 +5,7 @@ import type { BackgroundRemover } from './backgroundRemoval';
 import type { PaletteExtractor } from './colorExtraction';
 import type { GarmentEmbedder } from './embedding';
 import { measureShape, tightCrop } from './garmentShape';
+import { removeHanger } from './hangerRemoval';
 import { detectPattern } from './pattern';
 import type { QualityReport } from './junkFilter';
 
@@ -77,8 +78,10 @@ export class GarmentPipeline {
       );
     }
 
-    // Store and analyse only the garment's box: smaller PNGs, bigger thumbnails.
-    const garment = tightCrop(cutout);
+    // Segmentation keeps the hanger as part of the garment; drop it before anything measures
+    // the cutout, so it doesn't add a hook to the image, a colour to the palette or height to the shape.
+    // Then store and analyse only the garment's box: smaller PNGs, bigger thumbnails.
+    const garment = tightCrop(removeHanger(cutout).image);
     const palette = await timed('color', () => this.stages.extractPalette(garment));
     if (palette.length === 0) throw new Error('Could not extract a colour from the garment.');
     const significant = palette.filter((p) => p.share >= 0.12).length;

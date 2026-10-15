@@ -17,13 +17,15 @@ interface Props {
   onCapture: (photo: Photo) => void;
   /** Set to let the gallery pick several photos at once. A single pick still goes to onCapture. */
   onPickMany?: (photos: Photo[]) => void;
+  /** Most photos one gallery pick may hand to onPickMany. */
+  maxPick?: number;
   /** 'front' for selfies. Either way the user can flip. */
   initialFacing?: 'front' | 'back';
   /** Live blur/exposure feedback before the shutter is pressed. */
   liveQuality?: boolean;
 }
 
-export function CameraCapture({ hint, onCapture, onPickMany, initialFacing = 'back', liveQuality = true }: Props) {
+export function CameraCapture({ hint, onCapture, onPickMany, maxPick = MAX_GALLERY_PICK, initialFacing = 'back', liveQuality = true }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const camera = useRef<CameraView>(null);
   const [facing, setFacing] = useState(initialFacing);
@@ -48,10 +50,10 @@ export function CameraCapture({ hint, onCapture, onPickMany, initialFacing = 'ba
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       quality: 1,
-      ...(onPickMany && { allowsMultipleSelection: true, selectionLimit: MAX_GALLERY_PICK, orderedSelection: true }),
+      ...(onPickMany && { allowsMultipleSelection: true, selectionLimit: maxPick, orderedSelection: true }),
     });
     if (res.canceled) return;
-    const photos = res.assets.slice(0, MAX_GALLERY_PICK).map((a) => ({ uri: a.uri, width: a.width, height: a.height }));
+    const photos = res.assets.slice(0, maxPick).map((a) => ({ uri: a.uri, width: a.width, height: a.height }));
     if (photos.length > 1 && onPickMany) onPickMany(photos);
     else if (photos[0]) onCapture(photos[0]);
   };
@@ -99,10 +101,10 @@ export function CameraCapture({ hint, onCapture, onPickMany, initialFacing = 'ba
         <Pressable
           onPress={pick}
           style={styles.sideButton}
-          accessibilityLabel={onPickMany ? `Choose up to ${MAX_GALLERY_PICK} photos from gallery` : 'Choose from gallery'}
+          accessibilityLabel={onPickMany ? `Choose up to ${maxPick} photos from gallery` : 'Choose from gallery'}
         >
           <Text style={styles.sideText}>Gallery</Text>
-          {onPickMany && <Text style={styles.sideSub}>up to {MAX_GALLERY_PICK}</Text>}
+          {onPickMany && <Text style={styles.sideSub}>up to {maxPick}</Text>}
         </Pressable>
         <Pressable
           onPress={capture}

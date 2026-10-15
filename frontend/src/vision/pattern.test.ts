@@ -1,5 +1,5 @@
 import type { RGBAImage } from '../image/pixels';
-import { measureShape, tightCrop } from './garmentShape';
+import { anchorWidth, measureShape, tightCrop } from './garmentShape';
 import { detectPattern } from './pattern';
 
 function make(w: number, h: number, paint: (x: number, y: number) => [number, number, number, number]): RGBAImage {
@@ -46,4 +46,21 @@ test('tight crop and shape', () => {
   const c = tightCrop(img, 0);
   expect([c.width, c.height]).toEqual([40, 100]);
   expect(measureShape(c)).toEqual({ aspect: 2.5, taper: 1, waistDefinition: 0, fill: 1 });
+});
+
+describe('anchorWidth', () => {
+  const clear: [number, number, number, number] = [0, 0, 0, 0];
+  // 300x300 tee: torso x 100..199, sleeves spread out to 0..299 for the top 20% only.
+  const tee = make(300, 300, (x, y) => ((x >= 100 && x < 200) || (y < 60 && y >= 0) ? navy : clear));
+  test('measures the torso, not the spread sleeves', () => {
+    expect(anchorWidth(tee, 'chest')).toBe(100);
+  });
+  test('bridges an open front', () => {
+    const jacket = make(300, 300, (x) => ((x >= 90 && x < 145) || (x >= 155 && x < 210) ? navy : clear));
+    expect(anchorWidth(jacket, 'chest')).toBe(120);
+  });
+  test('waistband of trousers', () => {
+    const jeans = make(200, 400, (x, y) => (y < 120 ? x >= 40 && x < 160 : (x >= 40 && x < 95) || (x >= 105 && x < 160)) ? navy : clear);
+    expect(anchorWidth(jeans, 'waist')).toBe(120);
+  });
 });

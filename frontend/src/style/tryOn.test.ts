@@ -40,3 +40,22 @@ test('measurements change the avatar', () => {
   const wide = buildAvatar({ heightCm: 170, bodyShape: 'rectangle', proportions: { ...EMPTY_PROPORTIONS, hipCm: 115 } });
   expect(wide.pose.leftHip.x - wide.pose.rightHip.x).toBeGreaterThan(narrow.pose.leftHip.x - narrow.pose.rightHip.x);
 });
+
+test('a measured chest fits the garment by its torso, whatever the sleeves do', () => {
+  const span = avatar.pose.leftShoulder.x - avatar.pose.rightShoulder.x;
+  // Same tee: flat with sleeves spread (600 wide) and on a hanger (sleeves down, 330 wide); chest 300 in both.
+  const flat = placeGarment('tops', 't-shirts', { width: 600, height: 500, anchorWidth: 300 }, avatar.pose);
+  const hung = placeGarment('tops', 't-shirts', { width: 330, height: 500, anchorWidth: 300 }, avatar.pose);
+  if (!flat.ok || !hung.ok) throw new Error('placement failed');
+  const chest = (p: typeof flat, w: number) => (p.ok ? (p.placement.width * 300) / w : 0);
+  expect(chest(flat, 600)).toBeCloseTo(span * 1.45, 3);
+  expect(chest(hung, 330)).toBeCloseTo(span * 1.45, 3);
+});
+
+test('an implausible anchor is clamped, a missing one falls back', () => {
+  const span = avatar.pose.leftShoulder.x - avatar.pose.rightShoulder.x;
+  const tiny = placeGarment('tops', null, { width: 400, height: 400, anchorWidth: 5 }, avatar.pose);
+  const none = placeGarment('tops', null, { width: 400, height: 400, anchorWidth: null }, avatar.pose);
+  expect(tiny.ok && tiny.placement.width).toBeCloseTo(span * 1.75 * 2.2, 3);
+  expect(none.ok && none.placement.width).toBeCloseTo(span * 1.75, 3);
+});

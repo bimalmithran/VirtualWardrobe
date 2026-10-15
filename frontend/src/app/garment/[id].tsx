@@ -103,25 +103,29 @@ export default function GarmentDetail() {
     load();
   };
 
-  const removePhoto = (photo: GarmentPhoto) =>
-    Alert.alert('Remove this photo?', 'The colour and style will be recalculated from the other photos.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await photoStore.removePhoto(photo);
-          } catch (e) {
-            Alert.alert('Could not remove photo', e instanceof Error ? e.message : String(e));
-            return;
-          }
-          if (shownPhotoId === photo.id) setShownPhotoId(null);
-          load();
-          sync.syncAll().catch(() => {});
+  const removePhotos = (doomed: GarmentPhoto[]) =>
+    Alert.alert(
+      doomed.length === 1 ? 'Remove this photo?' : `Remove ${doomed.length} photos?`,
+      'The colour and style will be recalculated from the other photos.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // One at a time: each removal re-fuses the garment from the photos left.
+              for (const photo of doomed) await photoStore.removePhoto(photo);
+            } catch (e) {
+              Alert.alert('Could not remove photo', e instanceof Error ? e.message : String(e));
+            }
+            if (doomed.some((p) => p.id === shownPhotoId)) setShownPhotoId(null);
+            load();
+            sync.syncAll().catch(() => {});
+          },
         },
-      },
-    ]);
+      ],
+    );
 
   const fit = scoreForWearer(garment.colorHex, wearer);
   const shownUri = photos.find((p) => p.id === shownPhotoId)?.imageUri ?? garment.imageUri;
@@ -159,12 +163,13 @@ export default function GarmentDetail() {
         photos={photos}
         selectedUri={shownUri}
         onSelect={(p) => setShownPhotoId(p.id)}
-        onRemove={photos.length > 1 ? removePhoto : undefined}
+        onRemove={photos.length > 1 ? removePhotos : undefined}
+        minKeep={1}
         onAdd={() => openAddPhotos(garment.id, true)}
       />
       <Text style={[ui.muted, styles.photoHint]}>
         {photos.length > 1
-          ? `Colour and style combine all ${photos.length} photos. Long-press a photo to remove it.`
+          ? `Colour and style combine all ${photos.length} photos. Long-press to select photos to remove.`
           : 'Add the back, a close-up or a shot in other light for a truer colour and better suggestions.'}
       </Text>
 

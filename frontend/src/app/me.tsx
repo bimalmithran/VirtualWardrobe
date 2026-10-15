@@ -18,6 +18,9 @@ import { useServices } from '../services/ServicesProvider';
 import { colors, ui } from '../theme';
 import type { Photo } from '../vision/pipeline';
 
+/** Most photos of you one gallery pick takes. */
+const MAX_SELF_PICK = 10;
+
 /** Photos of the user → their colouring → what in (and missing from) the closet suits them. */
 export default function Me() {
   const { models } = useServices();
@@ -27,7 +30,9 @@ export default function Me() {
   const wearer = useWearer();
   const { garments } = useWardrobe();
   const [camera, setCamera] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
+  // Photos being read, one at a time: { done, total } while busy.
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const analyzing = progress !== null;
   const [error, setError] = useState<string | null>(null);
 
   const ready = models.files.isDownloaded('segmentation') && statuses.segmentation.state !== 'downloading';
@@ -39,33 +44,61 @@ export default function Me() {
     );
   }
 
-  const analyze = async (photo: Photo) => {
+  /** Reads each photo in turn (one in memory at a time); one bad photo doesn't stop the rest. */
+  const analyze = async (picked: Photo[]) => {
     setCamera(false);
     setError(null);
-    setAnalyzing(true);
-    try {
-      await add(photo);
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setAnalyzing(false);
+    const failures: string[] = [];
+    for (let i = 0; i < picked.length; i++) {
+      setProgress({ done: i, total: picked.length });
+      try {
+        await add(picked[i]);
+      } catch (e) {
+        failures.push(picked.length > 1 ? `Photo ${i + 1}: ${errorMessage(e)}` : errorMessage(e));
+      }
     }
+    setProgress(null);
+    if (failures.length) setError(failures.join('\n'));
   };
 
   const upload = async () => {
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
-    const asset = res.canceled ? null : res.assets[0];
-    if (asset) analyze({ uri: asset.uri, width: asset.width, height: asset.height });
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 1,
+      allowsMultipleSelection: true,
+      selectionLimit: MAX_SELF_PICK,
+      orderedSelection: true,
+    });
+    if (res.canceled) return;
+    analyze(res.assets.slice(0, MAX_SELF_PICK).map((a) => ({ uri: a.uri, width: a.width, height: a.height })));
   };
 
-  const confirmRemove = (photo: SelfPhoto) =>
-    Alert.alert('Remove this photo?', 'Your colouring will be recalculated from the others.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => remove(photo).catch(() => {}) },
-    ]);
+  const confirmRemove = (doomed: SelfPhoto[]) =>
+    Alert.alert(
+      doomed.length === 1 ? 'Remove this photo?' : `Remove ${doomed.length} photos?`,
+      'Your colouring will be recalculated from the others.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            for (const photo of doomed) await remove(photo).catch(() => {});
+          },
+        },
+      ],
+    );
 
   if (camera) {
-    return <CameraCapture initialFacing="front" hint="Face a window in daylight. No filters or heavy make-up." onCapture={analyze} />;
+    return (
+      <CameraCapture
+        initialFacing="front"
+        hint="Face a window in daylight. No filters or heavy make-up."
+        onCapture={(photo) => analyze([photo])}
+        onPickMany={analyze}
+        maxPick={MAX_SELF_PICK}
+      />
+    );
   }
 
   return (
@@ -79,25 +112,29 @@ export default function Me() {
       {photos.length > 0 && (
         <View style={styles.gap}>
           <PhotoStrip photos={photos} onRemove={confirmRemove} />
-          <Text style={[ui.muted, styles.hint]}>Long-press a photo to remove it. More photos in different light give a steadier result.</Text>
+          <Text style={[ui.muted, styles.hint]}>
+            Long-press to select photos to remove. More photos in different light give a steadier result.
+          </Text>
         </View>
       )}
 
       {analyzing ? (
         <View style={[ui.card, styles.analyzing]}>
           <ActivityIndicator color={colors.accent} />
-          <Text style={ui.body}>Reading your colouring…</Text>
+          <Text style={ui.body}>
+            {progress.total > 1 ? `Reading photo ${progress.done + 1} of ${progress.total}…` : 'Reading your colouring…'}
+          </Text>
         </View>
       ) : (
         <View style={styles.actions}>
           <Button title="Take a photo" onPress={() => setCamera(true)} style={styles.flex} />
-          <Button title="Upload" variant="secondary" onPress={upload} style={styles.flex} />
+          <Button title="Upload photos" variant="secondary" onPress={upload} style={styles.flex} />
         </View>
       )}
 
       {error && (
         <View style={[ui.card, styles.gap]}>
-          <Text style={[ui.h2, { color: colors.danger }]}>Couldn&apos;t read that photo</Text>
+          <Text style={[ui.h2, { color: colors.danger }]}>Couldn&apos;t read {error.includes('\n') || error.startsWith('Photo ') ? 'some photos' : 'that photo'}</Text>
           <Text style={ui.body}>{error}</Text>
         </View>
       )}

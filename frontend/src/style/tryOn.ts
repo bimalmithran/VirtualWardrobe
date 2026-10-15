@@ -37,6 +37,31 @@ const WIDTH_PER_SPAN: Record<string, number> = {
 };
 
 /**
+ * The garment's measured anchor width (see vision/garmentShape anchorWidth) relative to the
+ * span between the anchor joints: a shirt's chest is about 1.45× the shoulder-joint span when
+ * laid flat, a waistband about 2× the hip-joint span.
+ */
+const ANCHOR_PER_SPAN: Record<string, number> = {
+  tops: 1.45,
+  knitwear: 1.5,
+  outerwear: 1.6,
+  ethnic: 1.45,
+  bottoms: 2.0,
+  skirts: 2.0,
+};
+
+/** A measured anchor may move the width this far from the bounding-box estimate, no further. */
+const ANCHOR_CLAMP = [0.5, 2.2] as const;
+
+/** A garment cutout's size, plus where it meets the body when that was measured. */
+export interface GarmentSize {
+  width: number;
+  height: number;
+  /** Torso width at the chest (tops) or the waistband width (bottoms), in the same pixels. */
+  anchorWidth?: number | null;
+}
+
+/**
  * Anchors a garment to the body: tops, outerwear and ethnic wear hang from the shoulders,
  * bottoms sit at the waist above the hip joints, footwear at the ankles. The garment keeps
  * its own aspect ratio, so a long kurta falls past the hips and cropped tops stay short:
@@ -45,18 +70,30 @@ const WIDTH_PER_SPAN: Record<string, number> = {
 export function placeGarment(
   category: Category | null,
   subcategory: string | null,
-  garment: { width: number; height: number },
+  garment: GarmentSize,
   pose: Pose,
 ): PlacementResult {
   const aspect = garment.height / garment.width;
   const factor = (key: string) => WIDTH_PER_SPAN[subcategory ?? ''] ?? WIDTH_PER_SPAN[key];
+  /**
+   * Drawn width for an anchor span. With a measured anchor the garment's chest or waistband
+   * is matched to the body, so sleeves held out (flat lay) or hanging (hanger) don't change
+   * the fit; without one, the whole bounding box is scaled by a typical ratio.
+   */
+  const drawnWidth = (span: number, key: string) => {
+    const estimate = span * factor(key);
+    const perSpan = ANCHOR_PER_SPAN[subcategory ?? ''] ?? ANCHOR_PER_SPAN[key];
+    if (!garment.anchorWidth || !perSpan) return estimate;
+    const measured = (garment.width * span * perSpan) / garment.anchorWidth;
+    return Math.min(estimate * ANCHOR_CLAMP[1], Math.max(estimate * ANCHOR_CLAMP[0], measured));
+  };
 
   if (category === 'tops' || category === 'outerwear' || category === 'ethnic') {
     const { leftShoulder: l, rightShoulder: r } = pose;
     if (!seen(l, r)) return { ok: false, reason: 'Shoulders are not visible in your photo.' };
     const span = dist(l, r);
     const m = mid(l, r);
-    const width = span * factor(category);
+    const width = drawnWidth(span, category);
     const top = m.y - 0.2 * span; // collar sits above the shoulder joints
     return { ok: true, placement: rect(m.x, top, width, width * aspect, l, r, m) };
   }
@@ -65,7 +102,7 @@ export function placeGarment(
     if (!seen(l, r)) return { ok: false, reason: 'Hips are not visible in your photo.' };
     const span = dist(l, r);
     const m = mid(l, r);
-    const width = span * factor('bottoms');
+    const width = drawnWidth(span, 'bottoms');
     const top = m.y - 0.45 * span; // waistband sits above the hip joints
     return { ok: true, placement: rect(m.x, top, width, width * aspect, l, r, m) };
   }

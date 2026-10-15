@@ -6,6 +6,7 @@ import type { Category } from '../../domain/types';
 import { placeGarment, type Avatar } from '../../style/tryOn';
 import { colors, ui } from '../../theme';
 import type { Pose } from '../../vision/pose';
+import { usePreparedGarment } from './usePreparedGarment';
 
 interface Props {
   garmentUri: string;
@@ -23,7 +24,9 @@ interface Props {
  * a long kurta falls past the hips, a cropped top stops at the waist.
  */
 export function TryOnCanvas({ garmentUri, category, subcategory, person, width, maxHeight }: Props) {
-  const garment = useImage(garmentUri);
+  // Hanger removed, cropped, and measured where it meets the body (chest or waistband).
+  const prepared = usePreparedGarment(garmentUri, category);
+  const garment = useImage(prepared?.uri ?? null);
   const photo = useImage(person.kind === 'photo' ? person.uri : null);
   const base =
     person.kind === 'photo' ? (photo ? { w: photo.width(), h: photo.height() } : null) : { w: person.avatar.width, h: person.avatar.height };
@@ -42,7 +45,12 @@ export function TryOnCanvas({ garmentUri, category, subcategory, person, width, 
   }
 
   const scale = Math.min(width / base.w, maxHeight / base.h);
-  const placed = placeGarment(category, subcategory, { width: garment.width(), height: garment.height() }, pose);
+  const placed = placeGarment(
+    category,
+    subcategory,
+    { width: garment.width(), height: garment.height(), anchorWidth: prepared?.width ? prepared.anchorWidth : null },
+    pose,
+  );
 
   return (
     <View>

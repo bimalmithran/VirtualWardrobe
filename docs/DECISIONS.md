@@ -118,6 +118,19 @@ deliberately left out.
   retry in `SessionPool` never ran. Android now uses ORT's CPU provider (NEON int8 kernels), as
   the last build that worked on the phone did; NNAPI/Core ML remain opt-in via the NPU toggle.
   Any new provider must load every model on a real phone before it's added.
+- **Hanger removal** (`vision/hangerRemoval.ts`, after segmentation, before the crop and every
+  measurement). Saliency models keep the hanger as part of the object. Shape pass: an exact
+  Euclidean opening (disk radius 1.2% of the garment's longest side) separates thin structures
+  from the body; thin pieces in the top 25% that reach the body's top edge (the hook) are
+  dropped, plus anything left floating. Thin details lower down (drawstrings, belts, straps
+  inside the outline) and tiny corner trims are kept; items that are thin all over (a belt)
+  are skipped. Colour pass: the removed hook gives the hanger's colour; if it differs from the
+  garment (ΔE ≥ 30), hanger-coloured pixels within 3 radii of the cut, and thin hanger-coloured
+  pieces in the band, are removed too. Distance-bounded on purpose: on a kurta with blue
+  embroidery and a blue hanger, unbounded colour matching would punch holes in the yoke.
+  Known limit: a hanger bar visible through a neckline, not connected to the hook, stays.
+  Checked on real synced cutouts (~60 ms at 512 px in Node); changes stayed within the hanger
+  area.
 - **ONNX Runtime native version is pinned** (patch to `onnxruntime-react-native`'s gradle file).
   Upstream resolves `onnxruntime-android:latest.integration`, which silently moved builds to 1.31
   under a 1.24.3 JSI bridge. Not the cause of the crash above, but builds must be reproducible.
@@ -169,6 +182,13 @@ deliberately left out.
   measurements, torso length). This is a 2D silhouette/drape preview, not a photoreal
   diffusion try-on — labelled as such in the UI. Photoreal VTO needs a server GPU model
   (e.g. IDM-VTON) and is a possible premium upgrade.
+- **Try-on fits by the garment's own chest or waistband** (`anchorWidth`), not its bounding
+  box: the torso's width at 22–38% of a top's height (or the waistband) is matched to
+  shoulder-joint span × 1.45 (hip span × 2.0 for bottoms). The bounding box includes sleeves,
+  so the same tee came out small flat-laid (sleeves spread) and large on a hanger. The result
+  is clamped to 0.5–2.2× the old estimate and falls back to it when nothing is measurable.
+  Before drawing, the stored cutout is passed through hanger removal and re-cropped, so
+  garments saved before that feature no longer wear a hook; the stored file is not changed.
 - MoveNet's output order (y, x, score) is from Google's model card; I could not run it on a
   real photo of a person here, so the first on-device test should confirm placement.
 
@@ -226,6 +246,11 @@ deliberately left out.
   stylist. Set `ANTHROPIC_API_KEY` in `.env` to switch it on.
 
 ## 5c. Monetisation
+
+- **Premium is free for everyone during testing** (`PREMIUM_FOR_ALL` on the server,
+  `EXPO_PUBLIC_PREMIUM_FOR_ALL` in the app, both default on). The server reports Premium for every
+  user, so quotas don't apply; the app shows every perk and the paywall says "You have
+  Premium". Set both to `false` to start selling; nothing else needs to change.
 
 - **Payments: RevenueCat** (`react-native-purchases`). It validates Google Play / App Store
   receipts and is one of the two libraries Expo's IAP guide lists. The app logs in to
