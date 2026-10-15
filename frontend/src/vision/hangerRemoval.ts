@@ -13,8 +13,9 @@ import { rgbToLab, type Lab } from './color';
  *
  * The removed hook also gives the hanger's colour. A second pass then removes hanger-coloured
  * parts in the top band that shape alone can't separate: the bar showing through a neckline
- * and arm tips poking out past the shoulders. It is skipped when the hanger is close in colour
- * to the garment (a wooden hanger on a brown kurta), so it never eats into the fabric.
+ * (repainted with the fabric around it, so no hole is left) and arm tips poking out past the
+ * shoulders. It is skipped when the hanger is close in colour to the garment (a wooden hanger
+ * on a brown kurta), so it never eats into the fabric.
  */
 
 /** Disk radius as a fraction of the garment's longest side: removes structures under ~2.4% wide. */
@@ -32,8 +33,22 @@ const HANGER_DELTA_E = 30;
 const GROW_RADII = 3;
 /** The colour pass runs only if hanger and garment differ by at least this much. */
 const MIN_CONTRAST = 30;
+/**
+ * Thin pieces smaller than this many disk areas (r²) are corners the opening rounded off, not
+ * hanger. Measured on real cutouts: shoulder corners leave up to ~1.2 r², arm tips ~1.9 r².
+ */
+const MIN_PIECE_R2 = 1.5;
 /** A thin piece is hanger by colour if at least this share of it matches. */
 const COLOUR_SHARE = 0.6;
+/** The neckline bar: at most this many disk radii tall, ... */
+const BAR_MAX_RADII = 3;
+/** ... at least this share of the garment's width wide, and this many times wider than tall, ... */
+const BAR_MIN_WIDTH = 0.08;
+const BAR_ASPECT = 3;
+/** ... solid (this share of its bounding box), ... */
+const BAR_FILL = 0.5;
+/** ... and centred within this share of the garment's width of the hook. */
+const BAR_CENTRE = 0.12;
 /** Soft alpha within this many pixels of a removed part (and not of the garment) is cleared too. */
 const EDGE_PX = 2;
 
@@ -109,7 +124,7 @@ export function removeHanger(img: RGBAImage): HangerRemovalResult {
       if (y < h - 1) visit(i + w);
     }
     // Tiny pieces are corners the opening rounded off, not hanger: keep them.
-    if (tail >= 2 * r2 && top <= reachTop && bottom <= bandEnd) for (let k = 0; k < tail; k++) keep[queue[k]] = 0;
+    if (tail >= MIN_PIECE_R2 * r2 && top <= reachTop && bottom <= bandEnd) for (let k = 0; k < tail; k++) keep[queue[k]] = 0;
   }
   function visit(j: number) {
     if (fg[j] && !body[j] && !seen[j]) {
@@ -117,14 +132,18 @@ export function removeHanger(img: RGBAImage): HangerRemovalResult {
       queue[tail++] = j;
     }
   }
-  removeHangerColoured(data, fg, body, keep, seen, queue, { w, h, r2, bandEnd });
+  const bar = new Uint8Array(n);
+  removeHangerColoured(data, fg, body, keep, bar, seen, queue, { w, h, r2, bandEnd });
   // Whatever the cut left floating (the hook's far end, specks) goes too.
   keepLargestComponent(keep, w, h);
 
-  let kept = 0;
-  for (let i = 0; i < n; i++) kept += keep[i];
+  let kept = 0, barCount = 0;
+  for (let i = 0; i < n; i++) {
+    kept += keep[i];
+    barCount += keep[i] && bar[i];
+  }
   const removed = fgCount - kept;
-  if (removed === 0) return unchanged;
+  if (removed === 0 && barCount === 0) return unchanged;
 
   // Clear what was removed and the soft fringe around it; the rest of the outline is untouched.
   const removedMask = new Uint8Array(n);
@@ -137,7 +156,8 @@ export function removeHanger(img: RGBAImage): HangerRemovalResult {
     const fringe = !fg[i] && toRemoved[i] <= edge2 && toKeep[i] > edge2;
     if (removedMask[i] || fringe) out[i * 4 + 3] = 0;
   }
-  return { image: { width: w, height: h, data: out }, removedShare: removed / fgCount };
+  if (barCount > 0) paintOverBar(out, bar, keep, w, h);
+  return { image: { width: w, height: h, data: out }, removedShare: (removed + barCount) / fgCount };
 }
 
 /**
@@ -149,6 +169,7 @@ function removeHangerColoured(
   fg: Uint8Array,
   body: Uint8Array,
   keep: Uint8Array,
+  bar: Uint8Array,
   seen: Uint8Array,
   queue: Int32Array,
   { w, h, r2, bandEnd }: { w: number; h: number; r2: number; bandEnd: number },
@@ -202,6 +223,88 @@ function removeHangerColoured(
   const toCut = squaredDistanceTo(cut, 1, w, h);
   const reach2 = r2 * GROW_RADII * GROW_RADII;
   for (let i = 0; i < bandLimit; i++) if (keep[i] && toCut[i] <= reach2 && isHanger(i)) keep[i] = 0;
+
+  // (c) The bar seen through the neckline: a thin, wide, solid hanger-coloured strip in the band,
+  // centred under the hook. Shape and position keep it from matching a same-coloured print.
+  let cutX = 0, cutCount = 0, left = w, right = -1;
+  for (let i = 0; i < n; i++) {
+    const x = i % w;
+    if (cut[i]) {
+      cutX += x;
+      cutCount++;
+    }
+    if (body[i]) {
+      if (x < left) left = x;
+      if (x > right) right = x;
+    }
+  }
+  if (cutCount === 0 || right < left) return;
+  const hookX = cutX / cutCount, width = right - left + 1, r = Math.sqrt(r2);
+  seen.fill(0);
+  for (let start = 0; start < bandLimit; start++) {
+    if (!keep[start] || seen[start] || !isHanger(start)) continue;
+    let head = 0, tail = 0, x0 = w, x1 = -1, y0 = h, y1 = -1, sumX = 0;
+    queue[tail++] = start;
+    seen[start] = 1;
+    while (head < tail) {
+      const i = queue[head++];
+      const y = (i / w) | 0, x = i - y * w;
+      sumX += x;
+      if (x < x0) x0 = x;
+      if (x > x1) x1 = x;
+      if (y < y0) y0 = y;
+      if (y > y1) y1 = y;
+      if (x > 0) tail = visitHanger(i - 1, tail);
+      if (x < w - 1) tail = visitHanger(i + 1, tail);
+      if (y > 0) tail = visitHanger(i - w, tail);
+      if (y < h - 1) tail = visitHanger(i + w, tail);
+    }
+    const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+    const isBar =
+      bh <= BAR_MAX_RADII * r &&
+      bw >= BAR_MIN_WIDTH * width &&
+      bw >= BAR_ASPECT * bh &&
+      tail >= BAR_FILL * bw * bh &&
+      Math.abs(sumX / tail - hookX) <= BAR_CENTRE * width;
+    if (isBar) for (let k = 0; k < tail; k++) bar[queue[k]] = 1;
+  }
+  function visitHanger(j: number, tail: number) {
+    if (j < bandLimit && keep[j] && !seen[j] && isHanger(j)) {
+      seen[j] = 1;
+      queue[tail++] = j;
+    }
+    return tail;
+  }
+}
+
+/**
+ * Repaints the neckline bar (and its blended edge) with the fabric above and below it, column by
+ * column. The bar sits inside the garment, so clearing it would punch a hole in the cutout.
+ */
+function paintOverBar(out: Uint8Array, bar: Uint8Array, keep: Uint8Array, w: number, h: number) {
+  const toBar = squaredDistanceTo(bar, 1, w, h);
+  const grow = (EDGE_PX + 1) * (EDGE_PX + 1);
+  const paint = (i: number) => keep[i] === 1 && toBar[i] <= grow;
+  for (let x = 0; x < w; x++) {
+    for (let y = 0; y < h; y++) {
+      if (!paint(y * w + x)) continue;
+      let end = y;
+      while (end + 1 < h && paint((end + 1) * w + x)) end++;
+      const above = y > 0 && keep[(y - 1) * w + x] ? (y - 1) * w + x : -1;
+      const below = end + 1 < h && keep[(end + 1) * w + x] ? (end + 1) * w + x : -1;
+      for (let yy = y; yy <= end; yy++) {
+        const i = yy * w + x;
+        if (above < 0 && below < 0) {
+          out[i * 4 + 3] = 0;
+          continue;
+        }
+        const t = above < 0 ? 1 : below < 0 ? 0 : (yy - y + 1) / (end - y + 2);
+        const a = above < 0 ? below : above, b = below < 0 ? above : below;
+        for (let c = 0; c < 3; c++) out[i * 4 + c] = Math.round(out[a * 4 + c] * (1 - t) + out[b * 4 + c] * t);
+      }
+      y = end;
+    }
+  }
 }
 
 function meanLab(n: number, include: (i: number) => boolean, lab: (i: number) => Lab) {

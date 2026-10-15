@@ -185,7 +185,8 @@ colour and style vector, which improves outfit suggestions and "similar items".
 
 **Hangers.** Photographing a garment on a hanger is fine: the app removes the hook, and the
 hanger's arms where they stick out past the shoulders, from the cutout. A hanger bar showing
-through a neckline may remain.
+through a neckline is painted over with the fabric around it. A small arm tip can occasionally
+remain.
 
 **Your colours (photos of you).** Open the **Twin** tab → **Your colours**, or tap the prompt on
 the **Outfits** tab.

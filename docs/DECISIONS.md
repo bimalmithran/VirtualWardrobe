@@ -128,9 +128,20 @@ deliberately left out.
   garment (ΔE ≥ 30), hanger-coloured pixels within 3 radii of the cut, and thin hanger-coloured
   pieces in the band, are removed too. Distance-bounded on purpose: on a kurta with blue
   embroidery and a blue hanger, unbounded colour matching would punch holes in the yoke.
-  Known limit: a hanger bar visible through a neckline, not connected to the hook, stays.
-  Checked on real synced cutouts (~60 ms at 512 px in Node); changes stayed within the hanger
-  area.
+  The bar seen through a neckline is found by shape and place (a solid hanger-coloured strip
+  under 3 radii tall, ≥ 8% of the garment wide and 3× wider than tall, centred within 12% of
+  the hook) and repainted column by column from the fabric above and below it; clearing it
+  would leave a hole. Thin pieces count as hanger from 1.5 r²: real shoulder corners trimmed
+  by the opening measured ≤ 1.2 r², arm tips left when the model drops the hook ~1.9 r².
+  Checked on real synced cutouts (~60–100 ms at 512 px in Node); the kurta's blue embroidery
+  under a blue hanger was untouched. Small arm tips can still remain in some photos.
+- **Cutout tidy-up** (`vision/cutoutCleanup.ts`, in the on-device background remover). The
+  saliency model keeps stray blobs of background and a faint low-alpha haze over the frame,
+  which showed as specks around the wearer in try-on. Pieces under 2% of the largest are
+  dropped (so a pair of shoes keeps both), alpha further than 1% of the frame from the kept
+  pieces is cleared (hair's soft edge stays), and enclosed gaps under 0.2% of the frame are
+  filled (pinholes; the gap between an arm and the body is far larger). Try-on runs the same
+  tidy-up on photos and garments saved before it existed.
 - **ONNX Runtime native version is pinned** (patch to `onnxruntime-react-native`'s gradle file).
   Upstream resolves `onnxruntime-android:latest.integration`, which silently moved builds to 1.31
   under a 1.24.3 JSI bridge. Not the cause of the crash above, but builds must be reproducible.

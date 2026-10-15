@@ -83,3 +83,32 @@ test('removes hanger-coloured arm stubs near the cut, but not a same-coloured pr
   expect(alpha(image, 150, 260)).toBe(255); // print kept
   expect(alpha(image, 100, 200)).toBe(255); // fabric kept
 });
+
+test('paints over the bar seen through the neckline with the fabric around it', () => {
+  const dark = [25, 25, 30], blue = [40, 90, 200];
+  // A 40x6 bar of hanger blue, centred under the hook, inside the body.
+  const bar: Shape = (x, y) => y >= 120 && y < 126 && x >= 130 && x < 170;
+  const data = new Uint8Array(W * H * 4);
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const inside = shirt(x, y) || hook(x, y);
+      data.set([...(hook(x, y) || bar(x, y) ? blue : dark), inside ? 255 : 0], (y * W + x) * 4);
+    }
+  const { image } = removeHanger({ width: W, height: H, data });
+  const at = (x: number, y: number) => Array.from(image.data.slice((y * W + x) * 4, (y * W + x) * 4 + 4));
+  expect(at(150, 123)).toEqual([...dark, 255]); // bar repainted, not a hole
+  expect(at(150, 60)[3]).toBe(0); // hook still removed
+});
+
+test('removes arm tips poking past the shoulders when the hook itself was not segmented', () => {
+  // Diagonal stubs ~4 px thick rising off each shoulder corner, no hook.
+  const tip = (cx: number, dir: number): Shape => (x, y) => {
+    const t = (x - cx) * dir;
+    return t >= 0 && t < 22 && Math.abs(y - (100 - t * 0.4)) < 2.5;
+  };
+  const left = tip(60, -1), right = tip(240, 1);
+  const { image } = removeHanger(mask(W, H, (x, y) => shirt(x, y) || left(x, y) || right(x, y)));
+  expect(alpha(image, 48, 95)).toBe(0);
+  expect(alpha(image, 252, 95)).toBe(0);
+  expect(alpha(image, 150, 200)).toBe(255);
+});

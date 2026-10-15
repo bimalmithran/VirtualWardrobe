@@ -2,6 +2,7 @@ import { MODELS, type ModelSpec } from '../config/models';
 import { loadRGBA, type RGBAImage } from '../image/pixels';
 import { resizeMap, rgbaToCHW } from '../image/tensor';
 import type { ModelRunner } from '../ml/modelRunner';
+import { cleanCutout } from './cutoutCleanup';
 
 export interface CutoutResult {
   cutout: RGBAImage; // working image with the mask applied as alpha
@@ -14,7 +15,8 @@ export interface BackgroundRemover {
 
 /**
  * RMBG-1.4 / ISNet: stretch to 1024x1024, predict a saliency map, min-max normalise it,
- * and resample it back onto the working image as the alpha channel.
+ * and resample it back onto the working image as the alpha channel, then tidy it (stray
+ * blobs, haze, pinholes; see cutoutCleanup.ts).
  */
 export class SaliencyBackgroundRemover implements BackgroundRemover {
   constructor(
@@ -30,16 +32,11 @@ export class SaliencyBackgroundRemover implements BackgroundRemover {
 
     const mask = resizeMap(raw.data, mw, mh, working.width, working.height);
     const out = new Uint8Array(working.data);
+    for (let i = 0; i < mask.length; i++) out[i * 4 + 3] = Math.round(Math.min(1, Math.max(0, mask[i])) * 255);
+    const cutout = cleanCutout({ width: working.width, height: working.height, data: out });
     let kept = 0;
-    for (let i = 0; i < mask.length; i++) {
-      const a = Math.round(Math.min(1, Math.max(0, mask[i])) * 255);
-      out[i * 4 + 3] = a;
-      if (a > 127) kept++;
-    }
-    return {
-      cutout: { width: working.width, height: working.height, data: out },
-      coverage: kept / mask.length,
-    };
+    for (let i = 3; i < cutout.data.length; i += 4) if (cutout.data[i] > 127) kept++;
+    return { cutout, coverage: kept / mask.length };
   }
 
   /**
