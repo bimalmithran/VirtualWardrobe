@@ -1,0 +1,31 @@
+# Security updates for every ecosystem; routine version bumps only where they're safe to take
+# without thought. Expo pins compatible versions per SDK (`npx expo install --fix`), so npm gets
+# security fixes only: a limit of 0 turns off version-update PRs but not security-update PRs.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+
+  - package-ecosystem: gomod
+    directory: /backend
+    schedule:
+      interval: weekly
+    groups:
+      go:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directories: [/backend, /frontend/docker]
+    schedule:
+      interval: monthly
