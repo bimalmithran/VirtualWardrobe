@@ -1,5 +1,8 @@
 # VirtualWardrobe — Edge-to-Cloud POC
 
+[![CI](https://github.com/bimalmithran/VirtualWardrobe/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bimalmithran/VirtualWardrobe/actions/workflows/ci.yml)
+[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+
 | | |
 |---|---|
 | `frontend/` | Expo SDK 57 app for Android and the web (iOS-ready). Computer vision runs on the device (ONNX Runtime; WebGPU/WebNN/Wasm in browsers), with a consented cloud fallback for low-end phones: junk filter, background removal (RMBG-1.4), K-Means colour, 512-d MobileCLIP embedding, fusion of several photos per garment, and personal colour analysis from photos of the user. |
