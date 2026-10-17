@@ -272,3 +272,18 @@ go vet ./... && go test ./...
 
 Settings: `DATABASE_URL` (required), `ADDR` (default `:8080`), `UPLOAD_DIR`, `PUBLIC_BASE_URL`,
 `AUTO_MIGRATE` (default `true`), `LLM_COST_CEILING_USD` (default `0.01`), `LLM_EMA_ALPHA` (default `0.3`).
+
+## Licence
+
+Copyright (C) 2026 Bimal.
+
+This program is free software: you can redistribute it and/or modify it under the terms of the
+GNU Affero General Public License as published by the Free Software Foundation, either version 3
+of the License, or (at your option) any later version. It is distributed in the hope that it will
+be useful, but WITHOUT ANY WARRANTY; see [LICENSE](LICENSE) for details.
+
+In short: if you distribute a modified version of the app, or run a modified version of the API
+for users over a network, you must offer them its source under the same licence.
+
+The ML models are not part of this repository and keep their own licences; they are downloaded
+on first use. RMBG-1.4 in particular is non-commercial only (see the warning above).
