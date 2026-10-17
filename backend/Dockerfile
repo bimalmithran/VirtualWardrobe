@@ -11,7 +11,7 @@ ADD https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/o
 RUN mkdir -p /ort && tar -xzf /tmp/ort-${TARGETARCH:-amd64}.tgz -C /ort --strip-components=1 \
  && cp -P /ort/lib/libonnxruntime.so* /usr/local/lib/
 
-FROM golang:1.26-bookworm AS build
+FROM golang:1.27-bookworm AS build
 WORKDIR /src
 # Dependencies first so code edits don't invalidate the module cache layer.
 COPY go.mod go.sum ./
