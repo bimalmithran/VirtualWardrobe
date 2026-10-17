@@ -1,7 +1,7 @@
 # Android build toolchain for the Expo app: Node 22 + JDK 17 + Android SDK/NDK.
 # Versions match react-native/gradle/libs.versions.toml for RN 0.86 (Expo SDK 57).
 # Bump them together with the Expo SDK.
-FROM node:22-bookworm
+FROM node:25-bookworm
 
 ARG CMDLINE_TOOLS=11076708
 ARG ANDROID_PLATFORM=36
